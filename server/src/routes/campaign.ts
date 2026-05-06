@@ -135,4 +135,25 @@ router.post('/join/:code', authenticate, async (req: Request, res: Response) => 
   res.json({ message: 'Joined campaign', campaignId: campaign.id });
 });
 
+// Leave campaign (player)
+router.post('/:id/leave', authenticate, async (req: Request, res: Response) => {
+  await prisma.campaignPlayer.deleteMany({
+    where: { campaignId: req.params.id, userId: req.user!.userId },
+  });
+  res.json({ message: 'Left campaign' });
+});
+
+// Kick player from campaign (DM only)
+router.delete('/:id/players/:userId', authenticate, async (req: Request, res: Response) => {
+  const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+  if (!campaign || campaign.dmId !== req.user!.userId) {
+    res.status(403).json({ error: 'Only the DM can remove players' });
+    return;
+  }
+  await prisma.campaignPlayer.deleteMany({
+    where: { campaignId: req.params.id, userId: req.params.userId },
+  });
+  res.json({ message: 'Player removed' });
+});
+
 export default router;

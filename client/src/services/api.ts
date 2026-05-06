@@ -48,6 +48,9 @@ export const campaignApi = {
     request<any>(`/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/campaigns/${id}`, { method: 'DELETE' }),
   join: (code: string) => request<any>(`/campaigns/join/${code}`, { method: 'POST' }),
+  leave: (id: string) => request<any>(`/campaigns/${id}/leave`, { method: 'POST' }),
+  kickPlayer: (id: string, userId: string) =>
+    request<void>(`/campaigns/${id}/players/${userId}`, { method: 'DELETE' }),
 };
 
 // ─── Maps ───

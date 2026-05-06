@@ -12,9 +12,12 @@ interface CampaignState {
 
   fetchCampaigns: () => Promise<void>;
   fetchCampaign: (id: string) => Promise<void>;
-  createCampaign: (name: string, description?: string) => Promise<void>;
+  createCampaign: (name: string, description?: string) => Promise<any>;
+  updateCampaign: (id: string, data: any) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
   joinCampaign: (code: string) => Promise<void>;
+  leaveCampaign: (id: string) => Promise<void>;
+  kickPlayer: (campaignId: string, userId: string) => Promise<void>;
 
   fetchMaps: (campaignId: string) => Promise<void>;
   createMap: (campaignId: string, data: any) => Promise<void>;
@@ -61,6 +64,15 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   createCampaign: async (name, description) => {
     const campaign = await campaignApi.create({ name, description });
     set((s) => ({ campaigns: [campaign, ...s.campaigns] }));
+    return campaign;
+  },
+
+  updateCampaign: async (id, data) => {
+    const updated = await campaignApi.update(id, data);
+    set((s) => ({
+      campaigns: s.campaigns.map((c) => (c.id === id ? updated : c)),
+      currentCampaign: s.currentCampaign?.id === id ? updated : s.currentCampaign,
+    }));
   },
 
   deleteCampaign: async (id) => {
@@ -76,6 +88,24 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       set({ loading: false });
     } catch (err) {
       set({ error: (err as Error).message, loading: false });
+    }
+  },
+
+  leaveCampaign: async (id) => {
+    await campaignApi.leave(id);
+    set((s) => ({ campaigns: s.campaigns.filter((c) => c.id !== id) }));
+  },
+
+  kickPlayer: async (campaignId, userId) => {
+    await campaignApi.kickPlayer(campaignId, userId);
+    const cc = get().currentCampaign;
+    if (cc) {
+      set({
+        currentCampaign: {
+          ...cc,
+          players: cc.players.filter((p: any) => p.userId !== userId),
+        },
+      });
     }
   },
 
