@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns      Campaign[]       @relation("DMCampaigns")
+  players        CampaignPlayer[]
+  characters     Character[]
+  diceRolls      DiceRoll[]
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  inviteCode  String   @unique
+  dmId        String
+  dm          User     @relation("DMCampaigns", fields: [dmId], references: [id])
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  maps           Map[]
+  players        CampaignPlayer[]
+  characters     Character[]
+  combatTrackers CombatTracker[]
+  diceRolls      DiceRoll[]
+  messages       ChatMessage[]
+}
+
+model CampaignPlayer {
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  role       String   @default("player")
+
+  @@id([campaignId, userId])
+}
+
+model Map {
+  id          String   @id @default(uuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  name        String
+  imageUrl    String
+  width       Int      @default(0)
+  height      Int      @default(0)
+  gridSize    Int      @default(50)
+  gridOffsetX Int      @default(0)
+  gridOffsetY Int      @default(0)
+  fogData     Json?
+  createdAt   DateTime @default(now())
+
+  tokens Token[]
+}
+
+model Token {
+  id            String   @id @default(uuid())
+  mapId         String
+  map           Map      @relation(fields: [mapId], references: [id])
+  campaignId    String
+  type          String   @default("character")
+  name          String
+  x             Float    @default(0)
+  y             Float    @default(0)
+  width         Int      @default(1)
+  height        Int      @default(1)
+  ownerId       String?
+  imageUrl      String?
+  color         String   @default("#ffffff")
+  hpCurrent     Int?
+  hpMax         Int?
+  ac            Int?
+  isHidden      Boolean  @default(false)
+  statusEffects Json?    @default("[]")
+  createdAt     DateTime @default(now())
+}
+
+model Character {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  name       String
+  class      String
+  level      Int      @default(1)
+  race       String
+  hpCurrent  Int
+  hpMax      Int
+  tempHp     Int      @default(0)
+  ac         Int
+  stats      Json
+  skills     Json?
+  spells     Json?
+  inventory  Json?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model CombatTracker {
+  id               String   @id @default(uuid())
+  campaignId       String
+  campaign         Campaign @relation(fields: [campaignId], references: [id])
+  mapId            String?
+  isActive         Boolean  @default(true)
+  round            Int      @default(1)
+  currentTurnIndex Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  participants CombatParticipant[]
+}
+
+model CombatParticipant {
+  id            String  @id @default(uuid())
+  combatId      String
+  combat        CombatTracker @relation(fields: [combatId], references: [id])
+  tokenId       String
+  label         String?
+  initiative    Int
+  isActiveTurn  Boolean @default(false)
+
+  @@index([combatId])
+}
+
+model DiceRoll {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  diceType   String
+  modifier   Int      @default(0)
+  result     Int
+  isPrivate  Boolean  @default(false)
+  label      String?
+  rolledAt   DateTime @default(now())
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  userId     String
+  username   String
+  content    String
+  type       String   @default("text")
+  isPrivate  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
