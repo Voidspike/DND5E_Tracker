@@ -48,6 +48,11 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       include: { dm: { select: { id: true, username: true, avatarUrl: true } } },
     });
 
+    // Add DM to CampaignPlayer table with dm role
+    await prisma.campaignPlayer.create({
+      data: { campaignId: campaign.id, userId: req.user!.userId, role: 'dm' },
+    });
+
     res.status(201).json(campaign);
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -87,7 +92,7 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
     const data = updateSchema.parse(req.body);
     const updated = await prisma.campaign.update({
       where: { id: req.params.id },
-      data,
+      data: data as any,
       include: { dm: { select: { id: true, username: true, avatarUrl: true } } },
     });
     res.json(updated);

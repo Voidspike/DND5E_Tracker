@@ -29,7 +29,6 @@
 ### 2. 启动数据库
 
 ```bash
-cd dnd-visualizer
 docker compose up -d
 ```
 

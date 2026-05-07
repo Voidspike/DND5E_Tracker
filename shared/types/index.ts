@@ -40,6 +40,7 @@ export interface Campaign {
   inviteCode: string;
   dmId: string;
   dm?: User;
+  players?: CampaignPlayer[];
   settings: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -274,6 +275,7 @@ export type ClientToServerEvents = {
   'map:fog:update': (data: { campaignId: string; fogData: string }) => void;
   'map:grid:update': (data: { campaignId: string; grid: UpdateGridRequest }) => void;
   'token:create': (data: { campaignId: string; token: CreateTokenRequest }) => void;
+  'token:drag': (data: { tokenId: string; x: number; y: number }) => void;
   'token:move': (data: { tokenId: string; x: number; y: number }) => void;
   'token:update': (data: { tokenId: string; updates: UpdateTokenRequest }) => void;
   'token:delete': (tokenId: string) => void;

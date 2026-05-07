@@ -1,3 +1,21 @@
+import type {
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+  Campaign,
+  CreateCampaignRequest,
+  UpdateCampaignRequest,
+  MapData,
+  CreateMapRequest,
+  UpdateGridRequest,
+  Token,
+  CreateTokenRequest,
+  UpdateTokenRequest,
+  Character,
+  CreateCharacterRequest,
+  User,
+} from '@dnd/shared';
+
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function getToken(): string | null {
@@ -25,59 +43,62 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // ─── Auth ───
 export const authApi = {
-  login: (email: string, password: string) =>
-    request<{ token: string; user: any }>('/auth/login', {
+  login: (email: string, password: string): Promise<AuthResponse> =>
+    request<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password } as LoginRequest),
     }),
-  register: (username: string, email: string, password: string) =>
-    request<{ token: string; user: any }>('/auth/register', {
+  register: (username: string, email: string, password: string): Promise<AuthResponse> =>
+    request<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ username, email, password } as RegisterRequest),
     }),
-  me: () => request<any>('/auth/me'),
+  me: (): Promise<User> => request<User>('/auth/me'),
 };
 
 // ─── Campaigns ───
 export const campaignApi = {
-  list: () => request<any[]>('/campaigns'),
-  get: (id: string) => request<any>(`/campaigns/${id}`),
-  create: (data: { name: string; description?: string }) =>
-    request<any>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: any) =>
-    request<any>(`/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  delete: (id: string) => request<void>(`/campaigns/${id}`, { method: 'DELETE' }),
-  join: (code: string) => request<any>(`/campaigns/join/${code}`, { method: 'POST' }),
-  leave: (id: string) => request<any>(`/campaigns/${id}/leave`, { method: 'POST' }),
-  kickPlayer: (id: string, userId: string) =>
+  list: (): Promise<Campaign[]> => request<Campaign[]>('/campaigns'),
+  get: (id: string): Promise<Campaign> => request<Campaign>(`/campaigns/${id}`),
+  create: (data: CreateCampaignRequest): Promise<Campaign> =>
+    request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: UpdateCampaignRequest): Promise<Campaign> =>
+    request<Campaign>(`/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string): Promise<void> => request<void>(`/campaigns/${id}`, { method: 'DELETE' }),
+  join: (code: string): Promise<void> => request<void>(`/campaigns/join/${code}`, { method: 'POST' }),
+  leave: (id: string): Promise<void> => request<void>(`/campaigns/${id}/leave`, { method: 'POST' }),
+  kickPlayer: (id: string, userId: string): Promise<void> =>
     request<void>(`/campaigns/${id}/players/${userId}`, { method: 'DELETE' }),
 };
 
 // ─── Maps ───
 export const mapApi = {
-  list: (campaignId: string) => request<any[]>(`/maps/campaign/${campaignId}`),
-  create: (campaignId: string, data: any) =>
-    request<any>(`/maps/campaign/${campaignId}`, { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: any) =>
-    request<any>(`/maps/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  delete: (id: string) => request<void>(`/maps/${id}`, { method: 'DELETE' }),
+  list: (campaignId: string): Promise<MapData[]> => request<MapData[]>(`/maps/campaign/${campaignId}`),
+  create: (campaignId: string, data: CreateMapRequest): Promise<MapData> =>
+    request<MapData>(`/maps/campaign/${campaignId}`, { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: UpdateGridRequest): Promise<MapData> =>
+    request<MapData>(`/maps/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string): Promise<void> => request<void>(`/maps/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Tokens ───
 export const tokenApi = {
-  list: (mapId: string) => request<any[]>(`/tokens/map/${mapId}`),
-  create: (data: any) => request<any>('/tokens', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: any) =>
-    request<any>(`/tokens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  delete: (id: string) => request<void>(`/tokens/${id}`, { method: 'DELETE' }),
+  list: (mapId: string): Promise<Token[]> => request<Token[]>(`/tokens/map/${mapId}`),
+  listByCampaign: (campaignId: string): Promise<Token[]> => request<Token[]>(`/tokens/campaign/${campaignId}`),
+  create: (data: CreateTokenRequest): Promise<Token> =>
+    request<Token>('/tokens', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: UpdateTokenRequest): Promise<Token> =>
+    request<Token>(`/tokens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string): Promise<void> => request<void>(`/tokens/${id}`, { method: 'DELETE' }),
 };
 
 // ─── Characters ───
 export const characterApi = {
-  listByCampaign: (campaignId: string) => request<any[]>(`/characters/campaign/${campaignId}`),
-  listMine: () => request<any[]>('/characters/me'),
-  create: (data: any) =>
-    request<any>('/characters', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: any) =>
-    request<any>(`/characters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  listByCampaign: (campaignId: string): Promise<Character[]> =>
+    request<Character[]>(`/characters/campaign/${campaignId}`),
+  listMine: (): Promise<Character[]> => request<Character[]>('/characters/me'),
+  create: (data: CreateCharacterRequest): Promise<Character> =>
+    request<Character>('/characters', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Character>): Promise<Character> =>
+    request<Character>(`/characters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 };

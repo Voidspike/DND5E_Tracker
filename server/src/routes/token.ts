@@ -36,6 +36,15 @@ const updateSchema = z.object({
   statusEffects: z.array(z.string()).optional(),
 });
 
+// Get tokens for a campaign
+router.get('/campaign/:campaignId', authenticate, async (req: Request, res: Response) => {
+  const tokens = await prisma.token.findMany({
+    where: { campaignId: req.params.campaignId },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(tokens);
+});
+
 // Get tokens for a map
 router.get('/map/:mapId', authenticate, async (req: Request, res: Response) => {
   const tokens = await prisma.token.findMany({

@@ -39,17 +39,37 @@ export function setupSocket(httpServer: HTTPServer): Server {
     const socket = rawSocket as AuthenticatedSocket;
     console.log(`User connected: ${socket.username} (${socket.userId})`);
 
+    // Helper to emit system chat messages
+    async function emitSystemMessage(campaignId: string, content: string) {
+      try {
+        const sysMsg = await prisma.chatMessage.create({
+          data: {
+            campaignId,
+            userId: socket.userId!,
+            username: 'System',
+            content,
+            type: 'system',
+          },
+        });
+        io.to(`campaign:${campaignId}`).emit('chat:message', sysMsg as any);
+      } catch (err) {
+        console.error('System message error:', err);
+      }
+    }
+
     // ─── Room Management ───
     socket.on('room:join', (campaignId: string) => {
       socket.campaignId = campaignId;
       socket.join(`campaign:${campaignId}`);
       io.to(`campaign:${campaignId}`).emit('room:players', getOnlinePlayers(io, campaignId));
+      emitSystemMessage(campaignId, `${socket.username} joined the room.`);
     });
 
     socket.on('room:leave', (campaignId: string) => {
       socket.leave(`campaign:${campaignId}`);
       socket.campaignId = undefined;
       io.to(`campaign:${campaignId}`).emit('room:players', getOnlinePlayers(io, campaignId));
+      emitSystemMessage(campaignId, `${socket.username} left the room.`);
     });
 
     // ─── Token Operations ───
@@ -77,10 +97,9 @@ export function setupSocket(httpServer: HTTPServer): Server {
       }
     });
 
-    socket.on('token:move', (data) => {
-      prisma.token
-        .update({ where: { id: data.tokenId }, data: { x: data.x, y: data.y } })
-        .catch(console.error);
+    // Token drag: real-time broadcast during drag (no DB write)
+    socket.on('token:drag', (data) => {
+      if (!socket.campaignId) return;
       socket.to(`campaign:${socket.campaignId}`).emit('token:move', {
         id: data.tokenId,
         x: data.x,
@@ -88,7 +107,21 @@ export function setupSocket(httpServer: HTTPServer): Server {
       });
     });
 
+    // Token move: final position save + broadcast
+    socket.on('token:move', (data) => {
+      if (!socket.campaignId) return;
+      prisma.token
+        .update({ where: { id: data.tokenId }, data: { x: data.x, y: data.y } })
+        .catch(console.error);
+      io.to(`campaign:${socket.campaignId}`).emit('token:move', {
+        id: data.tokenId,
+        x: data.x,
+        y: data.y,
+      });
+    });
+
     socket.on('token:update', async (data) => {
+      if (!socket.campaignId) return;
       try {
         const token = await prisma.token.update({
           where: { id: data.tokenId },
@@ -101,51 +134,66 @@ export function setupSocket(httpServer: HTTPServer): Server {
     });
 
     socket.on('token:delete', (tokenId: string) => {
+      if (!socket.campaignId) return;
       prisma.token.delete({ where: { id: tokenId } }).catch(console.error);
       io.to(`campaign:${socket.campaignId}`).emit('token:delete', tokenId);
     });
 
     socket.on('token:select', (tokenId: string | null) => {
+      if (!socket.campaignId) return;
       socket.to(`campaign:${socket.campaignId}`).emit('token:select', tokenId);
     });
 
     // ─── Map Operations ───
     socket.on('map:fog:update', (data) => {
+      if (!socket.campaignId) return;
       prisma.map
-        .update({ where: { campaignId: data.campaignId }, data: { fogData: JSON.parse(data.fogData) } })
+        .updateMany({ where: { campaignId: data.campaignId }, data: { fogData: data.fogData } })
         .catch(console.error);
       socket.to(`campaign:${data.campaignId}`).emit('map:fog:update', data.fogData);
     });
 
     socket.on('map:grid:update', (data) => {
       prisma.map
-        .update({ where: { campaignId: data.campaignId }, data: data.grid })
+        .updateMany({ where: { campaignId: data.campaignId }, data: data.grid })
         .catch(console.error);
       socket.to(`campaign:${data.campaignId}`).emit('map:grid:update', data.grid);
     });
 
     // ─── Combat Operations ───
     socket.on('combat:start', async (campaignId: string) => {
+      if (!socket.campaignId) return;
       const combat = await prisma.combatTracker.create({
         data: { campaignId },
         include: { participants: true },
       });
       io.to(`campaign:${campaignId}`).emit('combat:start', combat as any);
+      emitSystemMessage(campaignId, 'Combat has started!');
     });
 
     socket.on('combat:end', async (combatId: string) => {
+      if (!socket.campaignId) return;
       await prisma.combatTracker.update({ where: { id: combatId }, data: { isActive: false } });
       io.to(`campaign:${socket.campaignId}`).emit('combat:end');
+      emitSystemMessage(socket.campaignId!, 'Combat has ended.');
     });
 
     socket.on('combat:next_turn', async (combatId: string) => {
+      if (!socket.campaignId) return;
       const combat = await prisma.combatTracker.findUnique({
         where: { id: combatId },
         include: { participants: true },
       });
-      if (!combat) return;
+      if (!combat || combat.participants.length === 0) return;
 
-      const nextIndex = (combat.currentTurnIndex + 1) % combat.participants.length;
+      // Clear isActiveTurn on all participants
+      await prisma.combatParticipant.updateMany({
+        where: { combatId },
+        data: { isActiveTurn: false },
+      });
+
+      const prevIndex = combat.currentTurnIndex;
+      const nextIndex = (prevIndex + 1) % combat.participants.length;
       const updated = await prisma.combatTracker.update({
         where: { id: combatId },
         data: {
@@ -154,10 +202,54 @@ export function setupSocket(httpServer: HTTPServer): Server {
         },
         include: { participants: true },
       });
+      // Set isActiveTurn on the current participant
+      if (updated.participants.length > 0) {
+        await prisma.combatParticipant.update({
+          where: { id: updated.participants[nextIndex].id },
+          data: { isActiveTurn: true },
+        });
+        updated.participants = updated.participants.map((p, i) => ({
+          ...p,
+          isActiveTurn: i === nextIndex,
+        }));
+      }
       io.to(`campaign:${socket.campaignId}`).emit('combat:next_turn', updated as any);
     });
 
+    socket.on('combat:prev_turn', async (combatId: string) => {
+      if (!socket.campaignId) return;
+      const combat = await prisma.combatTracker.findUnique({
+        where: { id: combatId },
+        include: { participants: true },
+      });
+      if (!combat || combat.participants.length === 0) return;
+
+      await prisma.combatParticipant.updateMany({
+        where: { combatId },
+        data: { isActiveTurn: false },
+      });
+
+      const prevIndex = (combat.currentTurnIndex - 1 + combat.participants.length) % combat.participants.length;
+      const updated = await prisma.combatTracker.update({
+        where: { id: combatId },
+        data: { currentTurnIndex: prevIndex },
+        include: { participants: true },
+      });
+      if (updated.participants.length > 0) {
+        await prisma.combatParticipant.update({
+          where: { id: updated.participants[prevIndex].id },
+          data: { isActiveTurn: true },
+        });
+        updated.participants = updated.participants.map((p, i) => ({
+          ...p,
+          isActiveTurn: i === prevIndex,
+        }));
+      }
+      io.to(`campaign:${socket.campaignId}`).emit('combat:prev_turn', updated as any);
+    });
+
     socket.on('combat:add', async (data) => {
+      if (!socket.campaignId) return;
       const participant = await prisma.combatParticipant.create({
         data: {
           combatId: data.combatId,
@@ -170,8 +262,18 @@ export function setupSocket(httpServer: HTTPServer): Server {
     });
 
     socket.on('combat:remove', async (data) => {
+      if (!socket.campaignId) return;
       await prisma.combatParticipant.delete({ where: { id: data.participantId } });
       io.to(`campaign:${socket.campaignId}`).emit('combat:remove', data.participantId);
+    });
+
+    socket.on('combat:initiative:update', async (data) => {
+      if (!socket.campaignId) return;
+      const participant = await prisma.combatParticipant.update({
+        where: { id: data.participantId },
+        data: { initiative: data.initiative },
+      });
+      io.to(`campaign:${socket.campaignId}`).emit('combat:initiative:update', participant as any);
     });
 
     // ─── Dice ───

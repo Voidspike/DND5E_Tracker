@@ -37,8 +37,8 @@ router.post('/register', async (req: Request, res: Response) => {
     });
 
     const token = jwt.sign({ userId: user.id, username: user.username }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn,
-    });
+      expiresIn: '7d',
+    } as jwt.SignOptions);
 
     res.status(201).json({
       token,
@@ -64,8 +64,8 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign({ userId: user.id, username: user.username }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn,
-    });
+      expiresIn: '7d',
+    } as jwt.SignOptions);
 
     res.json({
       token,

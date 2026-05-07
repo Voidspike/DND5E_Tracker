@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { createServer } from 'http';
 import { config } from './config';
 import { setupSocket } from './socket';
@@ -8,6 +9,7 @@ import campaignRoutes from './routes/campaign';
 import mapRoutes from './routes/map';
 import tokenRoutes from './routes/token';
 import characterRoutes from './routes/character';
+import uploadRoutes from './routes/upload';
 
 const app = express();
 const httpServer = createServer(app);
@@ -16,12 +18,16 @@ const httpServer = createServer(app);
 app.use(cors({ origin: config.corsOrigins, credentials: true }));
 app.use(express.json());
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/maps', mapRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/characters', characterRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

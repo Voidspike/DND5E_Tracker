@@ -1,35 +1,49 @@
 import { create } from 'zustand';
 import { campaignApi, mapApi, tokenApi, characterApi } from '../services/api';
+import type {
+  Campaign,
+  MapData,
+  Token,
+  Character,
+  CreateCampaignRequest,
+  CreateMapRequest,
+  CreateTokenRequest,
+  CreateCharacterRequest,
+  UpdateCampaignRequest,
+  UpdateTokenRequest,
+} from '@dnd/shared';
 
 interface CampaignState {
-  campaigns: any[];
-  currentCampaign: any | null;
-  maps: any[];
-  tokens: any[];
-  characters: any[];
+  campaigns: Campaign[];
+  currentCampaign: Campaign | null;
+  maps: MapData[];
+  tokens: Token[];
+  characters: Character[];
   loading: boolean;
   error: string | null;
 
   fetchCampaigns: () => Promise<void>;
   fetchCampaign: (id: string) => Promise<void>;
-  createCampaign: (name: string, description?: string) => Promise<any>;
-  updateCampaign: (id: string, data: any) => Promise<void>;
+  createCampaign: (name: string, description?: string) => Promise<Campaign>;
+  updateCampaign: (id: string, data: UpdateCampaignRequest) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
   joinCampaign: (code: string) => Promise<void>;
   leaveCampaign: (id: string) => Promise<void>;
   kickPlayer: (campaignId: string, userId: string) => Promise<void>;
 
   fetchMaps: (campaignId: string) => Promise<void>;
-  createMap: (campaignId: string, data: any) => Promise<void>;
+  createMap: (campaignId: string, data: CreateMapRequest) => Promise<void>;
   deleteMap: (id: string) => Promise<void>;
 
   fetchTokens: (mapId: string) => Promise<void>;
-  createToken: (data: any) => Promise<void>;
-  updateToken: (id: string, data: any) => Promise<void>;
+  fetchTokensByCampaign: (campaignId: string) => Promise<void>;
+  createToken: (data: CreateTokenRequest) => Promise<void>;
+  updateToken: (id: string, data: UpdateTokenRequest) => Promise<void>;
   deleteToken: (id: string) => Promise<void>;
 
   fetchCharacters: (campaignId: string) => Promise<void>;
-  createCharacter: (data: any) => Promise<void>;
+  createCharacter: (data: CreateCharacterRequest) => Promise<void>;
+  updateCharacter: (id: string, data: Partial<Character>) => Promise<void>;
 }
 
 export const useCampaignStore = create<CampaignState>((set, get) => ({
@@ -103,7 +117,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       set({
         currentCampaign: {
           ...cc,
-          players: cc.players.filter((p: any) => p.userId !== userId),
+          players: (cc as any).players.filter((p: any) => p.userId !== userId),
         },
       });
     }
@@ -126,6 +140,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
 
   fetchTokens: async (mapId) => {
     const tokens = await tokenApi.list(mapId);
+    set({ tokens });
+  },
+
+  fetchTokensByCampaign: async (campaignId) => {
+    const tokens = await tokenApi.listByCampaign(campaignId);
     set({ tokens });
   },
 
@@ -152,5 +171,12 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   createCharacter: async (data) => {
     const character = await characterApi.create(data);
     set((s) => ({ characters: [...s.characters, character] }));
+  },
+
+  updateCharacter: async (id, data) => {
+    const updated = await characterApi.update(id, data);
+    set((s) => ({
+      characters: s.characters.map((c) => (c.id === id ? updated : c)),
+    }));
   },
 }));

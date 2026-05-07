@@ -9,6 +9,9 @@ import TokenView from '../../components/token/TokenView';
 import CombatTracker from '../../components/combat/CombatTracker';
 import DiceRoller from '../../components/dice/DiceRoller';
 import ChatPanel from '../../components/chat/ChatPanel';
+import CharacterSheet from '../../components/character/CharacterSheet';
+import CharacterList from '../../components/character/CharacterList';
+import LoadingSkeleton from '../../components/LoadingSkeleton';
 
 type Tab = 'map' | 'combat' | 'dice' | 'chat';
 
@@ -16,9 +19,9 @@ export default function CampaignPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, fetchTokens, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
+  const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokensByCampaign, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
     useCampaignStore();
-  const { selectedTokenId, onlinePlayers } = useGameStore();
+  const { selectedTokenId, onlinePlayers, setFogData } = useGameStore();
   const socket = useSocket(id);
 
   const [activeTab, setActiveTab] = useState<Tab>('map');
@@ -29,6 +32,14 @@ export default function CampaignPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsName, setSettingsName] = useState('');
   const [settingsDesc, setSettingsDesc] = useState('');
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [mapName, setMapName] = useState('');
+  const [mapFile, setMapFile] = useState<File | null>(null);
+  const [mapUrl, setMapUrl] = useState('');
+  const [mapUploading, setMapUploading] = useState(false);
+  const [currentMapId, setCurrentMapId] = useState<string | null>(null);
+
+  const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   const isDM = currentCampaign?.dmId === user?.id;
   const isPlayer = !isDM && currentCampaign?.players?.some((p: any) => p.userId === user?.id);
@@ -42,10 +53,58 @@ export default function CampaignPage() {
   }, [id]);
 
   useEffect(() => {
-    if (maps.length > 0) {
-      fetchTokens(maps[0].id);
+    if (maps.length > 0 && id) {
+      fetchTokensByCampaign(id);
+    }
+  }, [maps, id]);
+
+  const currentMap = maps.find((m) => m.id === currentMapId) || maps[0];
+
+  // Sync fogData from current map
+  useEffect(() => {
+    if (currentMap?.fogData) {
+      setFogData(currentMap.fogData);
+    } else {
+      setFogData(null);
+    }
+  }, [currentMap?.id]);
+
+  // Set initial current map
+  useEffect(() => {
+    if (maps.length > 0 && !currentMapId) {
+      setCurrentMapId(maps[0].id);
     }
   }, [maps]);
+
+  const handleCreateMap = async () => {
+    if (!id || (!mapFile && !mapUrl.trim())) return;
+    setMapUploading(true);
+    try {
+      let imageUrl = mapUrl.trim();
+      if (mapFile) {
+        const formData = new FormData();
+        formData.append('image', mapFile);
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/upload/image`, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        });
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        imageUrl = data.url;
+      }
+      await createMap(id, { name: mapName || 'New Map', imageUrl });
+      setShowMapModal(false);
+      setMapName('');
+      setMapFile(null);
+      setMapUrl('');
+    } catch (err) {
+      console.error('Create map error:', err);
+    } finally {
+      setMapUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (currentCampaign) {
@@ -72,7 +131,7 @@ export default function CampaignPage() {
 
   const handleSaveSettings = async () => {
     if (!id) return;
-    await updateCampaign(id, { name: settingsName, description: settingsDesc || null });
+    await updateCampaign(id, { name: settingsName, description: settingsDesc || undefined });
     setShowSettings(false);
   };
 
@@ -97,7 +156,6 @@ export default function CampaignPage() {
     );
   }
 
-  const currentMap = maps[0];
   const allPlayers = currentCampaign.players || [];
 
   return (
@@ -132,6 +190,17 @@ export default function CampaignPage() {
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
               <span className="hidden sm:inline">Invite</span>
+            </button>
+          )}
+
+          {isDM && (
+            <button
+              onClick={() => setShowMapModal(true)}
+              className="text-xs sm:text-sm bg-dnd-accent/40 hover:bg-dnd-accent/60 text-white px-2 sm:px-3 py-1.5 rounded-lg transition-colors"
+              title="Add Map"
+            >
+              <span className="hidden sm:inline">+ Map</span>
+              <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
             </button>
           )}
 
@@ -270,6 +339,107 @@ export default function CampaignPage() {
         </div>
       )}
 
+      {/* Map Upload Modal */}
+      {showMapModal && isDM && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowMapModal(false)}>
+          <div className="bg-dnd-surface rounded-xl p-6 w-full max-w-md border border-dnd-accent shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-lg mb-4">Add Map</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-dnd-muted mb-1">Map Name</label>
+                <input
+                  type="text"
+                  value={mapName}
+                  onChange={(e) => setMapName(e.target.value)}
+                  placeholder="Dungeon Level 1"
+                  className="w-full bg-dnd-bg border border-dnd-accent rounded-lg px-3 py-2.5 text-dnd-text placeholder-dnd-muted/40 focus:outline-none focus:border-dnd-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-dnd-muted mb-1">Upload Image</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  onChange={(e) => {
+                    setMapFile(e.target.files?.[0] || null);
+                    setMapUrl('');
+                  }}
+                  className="w-full text-sm text-dnd-text file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-dnd-primary/20 file:text-dnd-primary hover:file:bg-dnd-primary/30"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 border-t border-dnd-accent/30" />
+                <span className="text-xs text-dnd-muted">OR</span>
+                <div className="flex-1 border-t border-dnd-accent/30" />
+              </div>
+              <div>
+                <label className="block text-sm text-dnd-muted mb-1">Image URL</label>
+                <input
+                  type="url"
+                  value={mapUrl}
+                  onChange={(e) => {
+                    setMapUrl(e.target.value);
+                    setMapFile(null);
+                  }}
+                  placeholder="https://example.com/map.jpg"
+                  className="w-full bg-dnd-bg border border-dnd-accent rounded-lg px-3 py-2.5 text-dnd-text placeholder-dnd-muted/40 focus:outline-none focus:border-dnd-primary"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleCreateMap}
+                  disabled={(!mapFile && !mapUrl.trim()) || mapUploading}
+                  className="flex-1 bg-dnd-primary text-white py-2.5 rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
+                >
+                  {mapUploading ? 'Uploading...' : 'Add Map'}
+                </button>
+                <button
+                  onClick={() => setShowMapModal(false)}
+                  className="px-4 bg-gray-700 text-white py-2.5 rounded-lg"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Character Sheet Modal */}
+      {showCharacterSheet && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => { setShowCharacterSheet(false); setSelectedCharacterId(null); }}>
+          <div className="bg-dnd-surface rounded-xl w-full max-w-3xl h-[80vh] border border-dnd-accent shadow-2xl flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Character List Sidebar */}
+            <div className="w-64 border-r border-dnd-accent/50 shrink-0 bg-dnd-surface/80">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-dnd-accent/30">
+                <h3 className="font-bold text-sm">Characters</h3>
+                <button
+                  onClick={() => { setShowCharacterSheet(false); setSelectedCharacterId(null); }}
+                  className="text-dnd-muted hover:text-dnd-text"
+                >
+                  ✕
+                </button>
+              </div>
+              <CharacterList characters={characters} onSelect={(c) => setSelectedCharacterId(c.id)} />
+            </div>
+
+            {/* Character Detail */}
+            <div className="flex-1 overflow-hidden">
+              {selectedCharacterId ? (
+                <CharacterSheet
+                  character={characters.find((c) => c.id === selectedCharacterId)}
+                  onClose={() => setSelectedCharacterId(null)}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-dnd-muted text-sm">
+                  Select a character to view details
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-dnd-surface/80 border-b border-dnd-accent/50 px-3 sm:px-4 flex gap-0.5 shrink-0 overflow-x-auto">
         {(['map', 'combat', 'dice', 'chat'] as Tab[]).map((tab) => (
@@ -307,6 +477,25 @@ export default function CampaignPage() {
         ))}
       </div>
 
+      {/* Map Switcher */}
+      {maps.length > 1 && activeTab === 'map' && (
+        <div className="bg-dnd-surface/60 border-b border-dnd-accent/30 px-3 sm:px-4 py-1.5 flex gap-1.5 overflow-x-auto shrink-0">
+          {maps.map((m: any) => (
+            <button
+              key={m.id}
+              onClick={() => setCurrentMapId(m.id)}
+              className={`text-xs px-2.5 py-1 rounded whitespace-nowrap transition-colors ${
+                currentMapId === m.id
+                  ? 'bg-dnd-primary/20 text-dnd-primary font-medium'
+                  : 'text-dnd-muted hover:text-dnd-text hover:bg-dnd-accent/20'
+              }`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 relative">
@@ -316,9 +505,13 @@ export default function CampaignPage() {
               tokens={tokens}
               isDM={isDM}
               socket={socket}
+              selectedTokenId={selectedTokenId}
             />
           )}
-          {activeTab === 'map' && !currentMap && (
+          {activeTab === 'map' && !currentMap && loading && (
+            <LoadingSkeleton lines={5} />
+          )}
+          {activeTab === 'map' && !currentMap && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-dnd-muted px-4">
               <div className="w-16 h-16 bg-dnd-accent/30 rounded-2xl flex items-center justify-center mb-4">
                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
@@ -329,14 +522,17 @@ export default function CampaignPage() {
               </p>
             </div>
           )}
+          {activeTab === 'combat' && loading && !currentCampaign && (
+            <LoadingSkeleton lines={4} />
+          )}
           {activeTab === 'combat' && (
-            <CombatTracker isDM={isDM} socket={socket} campaignId={id!} />
+            <CombatTracker isDM={isDM} socket={socket} campaignId={id!} tokens={tokens} />
           )}
           {activeTab === 'dice' && (
             <DiceRoller socket={socket} campaignId={id!} />
           )}
           {activeTab === 'chat' && (
-            <ChatPanel socket={socket} campaignId={id!} />
+            <ChatPanel socket={socket} campaignId={id!} isDM={isDM} />
           )}
         </div>
 

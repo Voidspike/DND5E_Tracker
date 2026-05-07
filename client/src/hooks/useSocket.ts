@@ -11,6 +11,9 @@ export function useSocket(campaignId?: string) {
     addDiceRoll,
     setFogData,
     setCombatTracker,
+    addCombatParticipant,
+    removeCombatParticipant,
+    updateCombatParticipant,
   } = useGameStore();
 
   useEffect(() => {
@@ -25,7 +28,11 @@ export function useSocket(campaignId?: string) {
     socket.on('map:fog:update', (data: string) => setFogData(data));
     socket.on('combat:start', (combat: any) => setCombatTracker(combat));
     socket.on('combat:next_turn', (combat: any) => setCombatTracker(combat));
+    socket.on('combat:prev_turn', (combat: any) => setCombatTracker(combat));
     socket.on('combat:end', () => setCombatTracker(null));
+    socket.on('combat:add', (participant: any) => addCombatParticipant(participant));
+    socket.on('combat:remove', (participantId: string) => removeCombatParticipant(participantId));
+    socket.on('combat:initiative:update', (participant: any) => updateCombatParticipant(participant));
 
     socket.emit('room:join', campaignId);
 
@@ -38,7 +45,11 @@ export function useSocket(campaignId?: string) {
       socket.off('map:fog:update');
       socket.off('combat:start');
       socket.off('combat:next_turn');
+      socket.off('combat:prev_turn');
       socket.off('combat:end');
+      socket.off('combat:add');
+      socket.off('combat:remove');
+      socket.off('combat:initiative:update');
     };
   }, [token, campaignId]);
 

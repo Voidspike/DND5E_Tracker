@@ -20,41 +20,41 @@
 ## Phase 2 — 核心功能完善
 
 ### 地图系统
-- [ ] **地图上传**：支持通过 UI 上传图片文件（非仅 URL），对接 multer 或云存储
-- [ ] **网格设置面板**：DM 在房间内可实时调整网格大小、偏移量（当前只有 API）
-- [ ] **战争迷雾**：DM 绘制/擦除迷雾，实时同步到玩家（后端有 model，前端无 UI）
-- [ ] **多地图切换**：支持在多个地图间切换查看，DM 可设置默认地图
+- [x] **地图上传**：支持通过 UI 上传图片文件（非仅 URL），对接 multer 或云存储
+- [x] **网格设置面板**：DM 在房间内可实时调整网格大小、偏移量（当前只有 API）
+- [x] **战争迷雾**：DM 绘制/擦除迷雾，实时同步到玩家（后端有 model，前端无 UI）
+- [x] **多地图切换**：支持在多个地图间切换查看，DM 可设置默认地图
 - [ ] **地图缩放/平移优化**：触摸板手势支持、平滑过渡
 
 ### 棋子系统
-- [ ] **棋子拖动**：拖拽移动棋子并实时同步位置（当前通过点击放置）
-- [ ] **棋子类型选择器**：创建时选择 character/npc/monster/object，带图标
-- [ ] **状态效果 UI**：给棋子添加/移除状态效果（中毒、麻痹等）
-- [ ] **血量条实时编辑**：在棋子上一键 +/- HP
-- [ ] **隐藏/显示棋子**：DM 切换棋子对玩家可见性
+- [x] **棋子拖动**：拖拽移动棋子并实时同步位置（当前通过点击放置）
+- [x] **棋子类型选择器**：创建时选择 character/npc/monster/object，带图标
+- [ ] **状态效果 UI**：给棋子添加/移除状态效果（显示已支持，缺增删 UI）
+- [x] **血量条实时编辑**：在棋子上一键 +/- HP
+- [x] **隐藏/显示棋子**：DM 切换棋子对玩家可见性（已解除 display:none）
 
 ### 战斗追踪
-- [ ] **自动先攻排序**：添加参与者后按 initiative 降序排列
+- [x] **自动先攻排序**：添加参与者后按 initiative 降序排列
 - [ ] **回合倒计时**：每个回合的可选时间限制
 - [ ] **战斗日志**：记录每个回合的操作
-- [ ] **DM 手动调整先攻**：在列表内直接编辑数字
+- [x] **DM 手动调整先攻**：在列表内直接编辑数字（点击 initiative 编辑）
 
 ### 角色卡
-- [ ] **角色卡编辑表单**：当前只有只读查看，需增加编辑 UI
-- [ ] **属性/技能加点**：str/dex/con/int/wis/cha 编辑
-- [ ] **法术位追踪**：记录可用/已用法术位
-- [ ] **装备/物品管理**：背包界面
+- [x] **角色卡编辑表单**：已实现完整 CharacterSheet 组件，支持编辑 stats/HP/AC/notes
+- [x] **属性/技能加点**：str/dex/con/int/wis/cha 编辑
+- [ ] **法术位追踪**：记录可用/已用法术位（Prisma 有 spells JSON 字段，缺专用 UI）
+- [ ] **装备/物品管理**：背包界面（Prisma 有 inventory JSON 字段，缺专用 UI）
 - [ ] **快捷投骰**：从角色卡直接投相关属性/技能骰
 
 ### 骰子系统
 - [ ] **骰子投掷动画**：视觉骰子滚动效果（3D CSS 或 Canvas）
-- [ ] **骰子组合**：同时投掷多个骰子（如 2d6+1d8）
-- [ ] **快捷预设**：保存常用投骰公式（如 "Perception: d20+5"）
+- [x] **骰子组合**：同时投掷多个骰子（如 2d6+1d8），支持 Multi Mode
+- [x] **快捷预设**：保存常用投骰公式（如 "Perception: d20+5"），localStorage 持久化
 
 ### 聊天系统
-- [ ] **私聊 DM**：玩家发消息仅 DM 可见（Socket 事件已定义，前端缺 UI）
-- [ ] **系统通知**：战斗开始、回合变更、玩家加入/离开等自动消息
-- [ ] **消息类型区分**：文本/骰子结果/系统消息不同样式
+- [x] **私聊 DM**：玩家发消息仅 DM 可见（ChatPanel 已添加 Whisper 切换按钮）
+- [x] **系统通知**：玩家加入/离开、战斗开始/结束自动消息
+- [ ] **消息类型区分**：文本/骰子结果/系统消息不同样式（已部分支持 system/dice/whisper 标签）
 - [ ] **表情/快捷回复**
 
 ---
@@ -100,7 +100,7 @@
 - [ ] **环境变量治理**：dev/staging/prod 环境配置分离
 
 ### 代码质量
-- [ ] **TypeScript 严格模式**：消除所有 any 类型
+- [ ] **TypeScript 严格模式**：消除所有 any 类型（API + stores 已处理，组件仍有残留 any）
 - [ ] **API 错误统一处理**：全局 error handler + 错误码规范
 - [ ] **请求验证**：Zod schema 覆盖所有接口
 - [ ] **日志系统**：服务端结构化日志（pino / winston）
@@ -116,17 +116,25 @@
 
 ## 已知问题
 
-- [ ] 创建战役时后端未同时添加 DM 到 CampaignPlayer 表
-- [ ] Socket `token:move` 房间范围未校验（可能跨房间广播）
-- [ ] CampaignPage 的 `fetchTokens(maps[0].id)` 硬编码只加载第一个地图的棋子
-- [ ] 无 loading skeleton，切换标签时白屏
-- [ ] 后端无文件上传端点，地图图片只能用 URL
+- [x] 创建战役时后端未同时添加 DM 到 CampaignPlayer 表
+- [x] Socket `token:move` 房间范围未校验（可能跨房间广播）
+- [x] CampaignPage 的 `fetchTokens(maps[0].id)` 硬编码只加载第一个地图的棋子
+- [x] 无 loading skeleton，切换标签时白屏
+- [x] 后端无文件上传端点，地图图片只能用 URL
+- [ ] ~~combat:prev_turn 缺失~~ → **已修复**（添加 handler + client listener + isActiveTurn 逻辑）
+- [ ] ~~combat:initiative:update 缺失~~ → **已修复**（添加 handler + client listener + UI inline editing）
+- [ ] ~~战斗 isActiveTurn 从未设置~~ → **已修复**（combat:next_turn/prev_turn 中设置）
+- [ ] ~~角色卡 UI 为空~~ → **已修复**（CharacterSheet + CharacterList 组件）
+- [ ] ~~Token 隐藏按钮 display:none~~ → **已修复**（已启用，绑定到 selectedTokenId）
+- [ ] ~~私聊 DM 缺 UI~~ → **已修复**（ChatPanel Whisper 切换）
+- [ ] Map fog/grid socket 更新使用 campaignId 而非 mapId（临时用 updateMany，多地图时可能更新错误地图）
 
 ---
 
 ## 开发建议
 
-1. **接手后先从已知问题列表开始修**，这些问题影响基础体验
-2. **Phase 2 按用户价值排序**：战争迷雾 > 棋子拖动 > 角色卡编辑 > 多地图
+1. **接手后先读 CLAUDE.md**，了解架构和当前状态
+2. **Phase 2 剩余按用户价值排序**：状态效果增删 > 法术位追踪 > 装备管理 > 倒计时 > 日志
 3. **每个新功能遵循模式**：shared type → Prisma → API route → Socket event → Store → Component
-4. **测试和类型安全优先于新功能**：解决 any 类型 + 写核心 API 测试后再加功能
+4. **测试和类型安全优先于新功能**：解决组件中残余 any 类型 + 写核心 API 测试后再加功能
+5. **CLAUDE.md 是本项目的 AI 入职文档**，关键变更后请同步更新
