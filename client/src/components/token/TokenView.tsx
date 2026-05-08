@@ -15,6 +15,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
   const [name, setName] = useState(token?.name || '');
   const [hp, setHp] = useState(token?.hpCurrent?.toString() || '');
   const [hpMax, setHpMax] = useState(token?.hpMax?.toString() || '');
+  const [newEffect, setNewEffect] = useState('');
 
   if (!token) return null;
 
@@ -82,18 +83,62 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
       </div>
 
       {/* Status Effects */}
-      {token.statusEffects && Array.isArray(token.statusEffects) && token.statusEffects.length > 0 && (
-        <div className="mt-3">
-          <p className="text-xs text-dnd-muted mb-1">Status Effects</p>
-          <div className="flex flex-wrap gap-1">
-            {token.statusEffects.map((effect: string, i: number) => (
-              <span key={i} className="text-xs bg-yellow-900/40 text-yellow-300 px-2 py-0.5 rounded">
-                {effect}
-              </span>
-            ))}
-          </div>
+      <div className="mt-3">
+        <p className="text-xs text-dnd-muted mb-1">Status Effects</p>
+        <div className="flex flex-wrap gap-1">
+          {(token.statusEffects && Array.isArray(token.statusEffects) ? token.statusEffects : []).map((effect: string, i: number) => (
+            <span key={i} className="text-xs bg-yellow-900/40 text-yellow-300 px-2 py-0.5 rounded flex items-center gap-1">
+              {effect}
+              {canEdit && (
+                <button
+                  onClick={async () => {
+                    const effects = (token.statusEffects || []).filter((_: string, idx: number) => idx !== i);
+                    const updates = { statusEffects: effects };
+                    await updateToken(token.id, updates);
+                    socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
+                  }}
+                  className="text-yellow-400 hover:text-red-400 leading-none"
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
         </div>
-      )}
+        {canEdit && (
+          <div className="flex gap-1 mt-1">
+            <input
+              type="text"
+              value={newEffect}
+              onChange={(e) => setNewEffect(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && newEffect.trim()) {
+                  const effects = [...(token.statusEffects || []), newEffect.trim()];
+                  const updates = { statusEffects: effects };
+                  await updateToken(token.id, updates);
+                  socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
+                  setNewEffect('');
+                }
+              }}
+              className="flex-1 bg-dnd-bg border border-dnd-accent rounded px-2 py-0.5 text-xs"
+              placeholder="Add effect..."
+            />
+            <button
+              onClick={async () => {
+                if (!newEffect.trim()) return;
+                const effects = [...(token.statusEffects || []), newEffect.trim()];
+                const updates = { statusEffects: effects };
+                await updateToken(token.id, updates);
+                socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
+                setNewEffect('');
+              }}
+              className="bg-dnd-accent text-white px-2 py-0.5 rounded text-xs hover:opacity-90"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Edit Form */}
       {canEdit && (

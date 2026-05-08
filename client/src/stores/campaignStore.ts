@@ -40,6 +40,7 @@ interface CampaignState {
   fetchTokensByCampaign: (campaignId: string) => Promise<void>;
   createToken: (data: CreateTokenRequest) => Promise<void>;
   updateToken: (id: string, data: UpdateTokenRequest) => Promise<void>;
+  syncToken: (token: any) => void;
   deleteToken: (id: string) => Promise<void>;
 
   fetchCharacters: (campaignId: string) => Promise<void>;
@@ -162,6 +163,10 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   updateToken: async (id, data) => {
     const token = await tokenApi.update(id, data);
     set((s) => ({ tokens: s.tokens.map((t) => (t.id === id ? token : t)) }));
+  },
+
+  syncToken: (token) => {
+    set((s) => ({ tokens: s.tokens.map((t) => (t.id === token.id ? { ...t, ...token } : t)) }));
   },
 
   deleteToken: async (id) => {

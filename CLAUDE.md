@@ -88,7 +88,6 @@ shared/types/index.ts  →  Prisma schema  →  API route  →  Socket event  �
 - **Vaelira** — Drow Elf Sorcerer Lv6 (DM), darkvision 120ft, speed 30ft, full spell slots + prepared spells
 
 ### Known Gaps
-- **Token status effects**: displayed read-only, no add/remove UI
 - **No testing** (zero test files)
 - **No CI/CD** (no GitHub Actions)
 - **Redis configured but unused** in application code
@@ -96,7 +95,7 @@ shared/types/index.ts  →  Prisma schema  →  API route  →  Socket event  �
 - **No global Express error handler** middleware
 - **Token delete** in socket handler doesn't verify the token belongs to the campaign before deleting
 - **Map fog/grid socket updates** use `updateMany` with `campaignId` instead of targeting a specific map (bug for multi-map campaigns)
-- **Character sheet** is fully client-side; no connection between Character model tokens and map Tokens (need to link characterId on Token)
+- **Character sheet** fully synced to backend; no connection between Character model and map Tokens (need to link characterId on Token)
 
 ## Server Socket Event Map
 

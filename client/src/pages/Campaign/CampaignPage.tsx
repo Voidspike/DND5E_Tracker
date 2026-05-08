@@ -458,6 +458,8 @@ export default function CampaignPage() {
                 <CharacterSheet
                   character={characters.find(c => c.id === selectedCharacterId)!}
                   onClose={() => setSelectedCharacterId(null)}
+                  socket={socket ?? undefined}
+                  campaignId={id}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-dnd-muted text-sm">

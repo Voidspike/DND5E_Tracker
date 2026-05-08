@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { connectSocket, disconnectSocket, getSocket } from '../services/socket';
 import { useGameStore } from '../stores/gameStore';
+import { useCampaignStore } from '../stores/campaignStore';
 
 export function useSocket(campaignId?: string) {
   const token = useAuthStore((s) => s.token);
@@ -15,6 +16,7 @@ export function useSocket(campaignId?: string) {
     removeCombatParticipant,
     updateCombatParticipant,
   } = useGameStore();
+  const syncToken = useCampaignStore((s) => s.syncToken);
 
   useEffect(() => {
     if (!token || !campaignId) return;
@@ -33,6 +35,7 @@ export function useSocket(campaignId?: string) {
     socket.on('combat:add', (participant: any) => addCombatParticipant(participant));
     socket.on('combat:remove', (participantId: string) => removeCombatParticipant(participantId));
     socket.on('combat:initiative:update', (participant: any) => updateCombatParticipant(participant));
+    socket.on('token:update', (token: any) => syncToken(token));
 
     socket.emit('room:join', campaignId);
 
@@ -50,6 +53,7 @@ export function useSocket(campaignId?: string) {
       socket.off('combat:add');
       socket.off('combat:remove');
       socket.off('combat:initiative:update');
+      socket.off('token:update');
     };
   }, [token, campaignId]);
 

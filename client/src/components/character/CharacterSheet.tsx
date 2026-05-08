@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Socket } from 'socket.io-client';
 import { useAuthStore } from '../../stores/authStore';
 import { useCampaignStore } from '../../stores/campaignStore';
 import type { Character, CharacterStats } from '@dnd/shared';
@@ -6,6 +7,8 @@ import type { Character, CharacterStats } from '@dnd/shared';
 interface CharacterSheetProps {
   character: Character;
   onClose: () => void;
+  socket?: Socket;
+  campaignId?: string;
 }
 
 const STAT_NAMES = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const;
@@ -54,7 +57,7 @@ function getSkillMod(skillName: string, profs: string[] | null, stats: Character
 
 type CharTab = 'info' | 'stats' | 'combat' | 'skills' | 'spells' | 'equip';
 
-export default function CharacterSheet({ character, onClose }: CharacterSheetProps) {
+export default function CharacterSheet({ character, onClose, socket, campaignId }: CharacterSheetProps) {
   const { user } = useAuthStore();
   const { updateCharacter } = useCampaignStore();
   const [tab, setTab] = useState<CharTab>('info');
@@ -111,6 +114,14 @@ export default function CharacterSheet({ character, onClose }: CharacterSheetPro
   };
 
   const spells = (character.spells as Record<string, string[]>) || {};
+
+  const rollQuickDice = (modifier: number, label: string) => {
+    if (!socket || !campaignId) return;
+    socket.emit('dice:roll', {
+      campaignId,
+      request: { diceType: 'd20', modifier, isPrivate: false, label },
+    });
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -214,10 +225,19 @@ export default function CharacterSheet({ character, onClose }: CharacterSheetPro
           <div className="space-y-3">
             <div className="grid grid-cols-6 gap-2">
               {STAT_NAMES.map(stat => (
-                <div key={stat} className="text-center bg-dnd-bg rounded-lg p-3">
+                <div key={stat} className="text-center bg-dnd-bg rounded-lg p-3 relative group">
                   <span className="text-xs text-dnd-muted uppercase block mb-1">{STAT_LABELS[stat]}</span>
                   <span className="text-xl font-bold block">{stats[stat]}</span>
                   <span className="text-sm text-dnd-accent block">{formatMod(getModifier(stats[stat]))}</span>
+                  {socket && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); rollQuickDice(getModifier(stats[stat]), `${STAT_FULL[stat]} Check`); }}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-dnd-primary/20 hover:bg-dnd-primary/40 text-dnd-primary px-1 py-0.5 rounded"
+                      title={`Roll ${STAT_FULL[stat]} Check`}
+                    >
+                      d20
+                    </button>
+                  )}
                   {isOwner && editing && (
                     <button
                       onClick={() => toggleSaveProf(stat)}
@@ -253,12 +273,26 @@ export default function CharacterSheet({ character, onClose }: CharacterSheetPro
             <div className="bg-dnd-bg rounded-lg p-3">
               <h3 className="text-xs font-semibold text-dnd-muted mb-2">Saving Throws</h3>
               <div className="grid grid-cols-3 gap-1 text-sm">
-                {STAT_NAMES.map(stat => (
-                  <div key={stat} className="flex justify-between">
-                    <span className="text-dnd-muted">{STAT_LABELS[stat]}</span>
-                    <span className="font-medium">{formatMod(getModifier(stats[stat]) + (saveProfs.includes(stat) ? profBonus : 0))}</span>
-                  </div>
-                ))}
+                {STAT_NAMES.map(stat => {
+                  const saveMod = getModifier(stats[stat]) + (saveProfs.includes(stat) ? profBonus : 0);
+                  return (
+                    <div key={stat} className="flex justify-between items-center group">
+                      <span className="text-dnd-muted">{STAT_LABELS[stat]}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">{formatMod(saveMod)}</span>
+                        {socket && (
+                          <button
+                            onClick={() => rollQuickDice(saveMod, `${STAT_LABELS[stat]} Save`)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-dnd-primary/20 hover:bg-dnd-primary/40 text-dnd-primary px-1 rounded"
+                            title={`Roll ${STAT_LABELS[stat]} Save`}
+                          >
+                            d20
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <div className="bg-dnd-bg rounded-lg p-3">
@@ -319,7 +353,9 @@ export default function CharacterSheet({ character, onClose }: CharacterSheetPro
               return (
                 <div
                   key={skill.name}
-                  className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer transition-colors ${
+                  className={`flex items-center justify-between px-3 py-2 rounded transition-colors group ${
+                    isOwner && editing ? 'cursor-pointer' : ''
+                  } ${
                     isProf ? 'bg-dnd-primary/10 border border-dnd-primary/30' : 'bg-dnd-bg border border-dnd-accent/20 hover:border-dnd-accent/40'
                   }`}
                   onClick={() => { if (isOwner && editing) toggleSkillProf(skill.name); }}
@@ -331,6 +367,15 @@ export default function CharacterSheet({ character, onClose }: CharacterSheetPro
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-dnd-muted uppercase">{STAT_LABELS[skill.stat]}</span>
                     <span className="font-bold text-sm w-8 text-right">{formatMod(mod)}</span>
+                    {socket && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); rollQuickDice(mod, skill.name); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-dnd-primary/20 hover:bg-dnd-primary/40 text-dnd-primary px-1 rounded"
+                        title={`Roll ${skill.name}`}
+                      >
+                        d20
+                      </button>
+                    )}
                   </div>
                 </div>
               );
