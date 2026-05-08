@@ -43,6 +43,10 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
   const [dragTokenPos, setDragTokenPos] = useState({ x: 0, y: 0 });
   const [createTokenType, setCreateTokenType] = useState<string | null>(null);
+  const touchRef = useRef<{
+    touches: Map<number, { startX: number; startY: number; startScale: number; startOffset: { x: number; y: number } }>;
+    pinchDist: number;
+  }>({ touches: new Map(), pinchDist: 0 });
 
   const gridPixels = gridSize;
   const mapPixelWidth = (map.width || 30) * gridPixels;
@@ -209,6 +213,99 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     }
   };
 
+  // ── Touch handlers for mobile ──
+  const getTouchPos = (touch: React.Touch) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: touch.clientX, y: touch.clientY };
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchRef.current.pinchDist = Math.sqrt(dx * dx + dy * dy);
+      touchRef.current.touches.clear();
+      setDragTokenId(null);
+      return;
+    }
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const pos = getTouchPos(touch);
+      // Check if touching a token
+      const touchedToken = tokens.find((t: any) => {
+        if (t.mapId !== map.id) return false;
+        if (!isDM && t.isHidden) return false;
+        const tx = t.x * gridPixels * scale + offset.x;
+        const ty = t.y * gridPixels * scale + offset.y;
+        const size = Math.max(24, (t.width || 1) * gridPixels * scale);
+        const dist = Math.sqrt((pos.x - tx) ** 2 + (pos.y - ty) ** 2);
+        return dist < size / 2 + 10;
+      });
+      if (touchedToken && isDM) {
+        const coords = getGridCoords(touch.clientX, touch.clientY);
+        setDragTokenId(touchedToken.id);
+        setDragTokenOffset({ x: coords.x - touchedToken.x, y: coords.y - touchedToken.y });
+        setDragTokenPos({ x: touchedToken.x, y: touchedToken.y });
+        touchRef.current.touches.set(touch.identifier, { startX: 0, startY: 0, startScale: 0, startOffset: { x: 0, y: 0 } });
+      } else {
+        // Pan start
+        setPanDragging(true);
+        setPanDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+        touchRef.current.touches.clear();
+      }
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      // Pinch zoom
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (touchRef.current.pinchDist > 0) {
+        const ratio = dist / touchRef.current.pinchDist;
+        const newScale = Math.min(3, Math.max(0.2, scale * ratio));
+        const scaleChange = newScale / scale;
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          const mx = cx - rect.left;
+          const my = cy - rect.top;
+          setOffset({ x: mx - scaleChange * (mx - offset.x), y: my - scaleChange * (my - offset.y) });
+        }
+        setScale(newScale);
+        touchRef.current.pinchDist = dist;
+      }
+      return;
+    }
+    if (e.touches.length === 1 && dragTokenId) {
+      const touch = e.touches[0];
+      const coords = getGridCoords(touch.clientX, touch.clientY);
+      const newX = coords.x - dragTokenOffset.x;
+      const newY = coords.y - dragTokenOffset.y;
+      setDragTokenPos({ x: newX, y: newY });
+      socket.emit('token:drag', { tokenId: dragTokenId, x: newX, y: newY });
+      return;
+    }
+    if (e.touches.length === 1 && panDragging) {
+      const touch = e.touches[0];
+      setOffset({ x: touch.clientX - panDragStart.x, y: touch.clientY - panDragStart.y });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragTokenId) {
+      socket.emit('token:move', { tokenId: dragTokenId, x: dragTokenPos.x, y: dragTokenPos.y });
+      setDragTokenId(null);
+    }
+    setPanDragging(false);
+    touchRef.current.pinchDist = 0;
+  };
+
   const paintFog = (e: React.MouseEvent) => {
     const canvas = fogCanvasRef.current;
     if (!canvas) return;
@@ -324,6 +421,9 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={handleMapClick}
       style={{ cursor: fogMode !== 'none' ? 'crosshair' : panDragging ? 'grabbing' : createTokenType ? 'crosshair' : 'grab' }}
     >
@@ -532,24 +632,24 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
       )}
 
       {/* Controls */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-10">
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-10 touch-manipulation">
         <button
           onClick={() => setScale((s) => Math.min(3, s * 1.2))}
-          className="bg-dnd-surface border border-dnd-accent text-white w-8 h-8 rounded hover:bg-dnd-accent"
+          className="bg-dnd-surface border border-dnd-accent text-white w-10 h-10 sm:w-8 sm:h-8 rounded hover:bg-dnd-accent text-lg sm:text-base active:bg-dnd-accent"
           title="Zoom in"
         >
           +
         </button>
         <button
           onClick={() => setScale((s) => Math.max(0.2, s / 1.2))}
-          className="bg-dnd-surface border border-dnd-accent text-white w-8 h-8 rounded hover:bg-dnd-accent"
+          className="bg-dnd-surface border border-dnd-accent text-white w-10 h-10 sm:w-8 sm:h-8 rounded hover:bg-dnd-accent text-lg sm:text-base active:bg-dnd-accent"
           title="Zoom out"
         >
           -
         </button>
         <button
           onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }}
-          className="bg-dnd-surface border border-dnd-accent text-white px-2 h-8 rounded text-xs hover:bg-dnd-accent"
+          className="bg-dnd-surface border border-dnd-accent text-white px-2 h-10 sm:h-8 rounded text-xs sm:text-xs hover:bg-dnd-accent active:bg-dnd-accent"
         >
           Reset
         </button>

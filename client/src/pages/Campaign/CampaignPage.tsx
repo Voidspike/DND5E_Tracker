@@ -472,36 +472,36 @@ export default function CampaignPage() {
       )}
 
       {/* Tabs */}
-      <div className="bg-dnd-surface/80 border-b border-dnd-accent/50 px-3 sm:px-4 flex gap-0.5 shrink-0 overflow-x-auto">
+      <div className="bg-dnd-surface/80 border-b border-dnd-accent/50 px-2 sm:px-4 flex gap-0 shrink-0 overflow-x-auto">
         {(['map', 'combat', 'dice', 'chat'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-3 sm:px-5 py-2.5 text-xs sm:text-sm font-medium capitalize whitespace-nowrap transition-colors ${
+            className={`flex-1 sm:flex-none px-2 sm:px-5 py-2.5 text-xs sm:text-sm font-medium capitalize whitespace-nowrap transition-colors ${
               activeTab === tab
                 ? 'text-dnd-primary border-b-2 border-dnd-primary bg-dnd-primary/5'
                 : 'text-dnd-muted hover:text-dnd-text hover:bg-dnd-accent/20'
             }`}
           >
             {tab === 'map' ? (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center justify-center gap-1 sm:gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                Map
+                <span className="hidden xs:inline">Map</span>
               </span>
             ) : tab === 'combat' ? (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center justify-center gap-1 sm:gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                Combat
+                <span className="hidden xs:inline">Combat</span>
               </span>
             ) : tab === 'dice' ? (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center justify-center gap-1 sm:gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                Dice
+                <span className="hidden xs:inline">Dice</span>
               </span>
             ) : (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center justify-center gap-1 sm:gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                Chat
+                <span className="hidden xs:inline">Chat</span>
               </span>
             )}
           </button>
