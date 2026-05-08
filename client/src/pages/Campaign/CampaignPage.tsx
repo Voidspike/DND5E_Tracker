@@ -36,6 +36,8 @@ export default function CampaignPage() {
   const [mapName, setMapName] = useState('');
   const [mapFile, setMapFile] = useState<File | null>(null);
   const [mapUrl, setMapUrl] = useState('');
+  const [mapWidth, setMapWidth] = useState(30);
+  const [mapHeight, setMapHeight] = useState(20);
   const [mapUploading, setMapUploading] = useState(false);
   const [currentMapId, setCurrentMapId] = useState<string | null>(null);
 
@@ -94,11 +96,13 @@ export default function CampaignPage() {
         const data = await res.json();
         imageUrl = data.url;
       }
-      await createMap(id, { name: mapName || 'New Map', imageUrl });
+      await createMap(id, { name: mapName || 'New Map', imageUrl, width: mapWidth, height: mapHeight });
       setShowMapModal(false);
       setMapName('');
       setMapFile(null);
       setMapUrl('');
+      setMapWidth(30);
+      setMapHeight(20);
     } catch (err) {
       console.error('Create map error:', err);
     } finally {
@@ -355,6 +359,31 @@ export default function CampaignPage() {
                   className="w-full bg-dnd-bg border border-dnd-accent rounded-lg px-3 py-2.5 text-dnd-text placeholder-dnd-muted/40 focus:outline-none focus:border-dnd-primary"
                 />
               </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm text-dnd-muted mb-1">Grid Width</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={200}
+                    value={mapWidth}
+                    onChange={(e) => setMapWidth(parseInt(e.target.value) || 5)}
+                    className="w-full bg-dnd-bg border border-dnd-accent rounded-lg px-3 py-2.5 text-dnd-text focus:outline-none focus:border-dnd-primary"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-dnd-muted mb-1">Grid Height</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={200}
+                    value={mapHeight}
+                    onChange={(e) => setMapHeight(parseInt(e.target.value) || 5)}
+                    className="w-full bg-dnd-bg border border-dnd-accent rounded-lg px-3 py-2.5 text-dnd-text focus:outline-none focus:border-dnd-primary"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-dnd-muted">Set the map size in grid units. Image will stretch to fill the grid. Adjust grid size later in map settings.</p>
               <div>
                 <label className="block text-sm text-dnd-muted mb-1">Upload Image</label>
                 <input
@@ -425,9 +454,9 @@ export default function CampaignPage() {
 
             {/* Character Detail */}
             <div className="flex-1 overflow-hidden">
-              {selectedCharacterId ? (
+              {selectedCharacterId && characters.find(c => c.id === selectedCharacterId) ? (
                 <CharacterSheet
-                  character={characters.find((c) => c.id === selectedCharacterId)}
+                  character={characters.find(c => c.id === selectedCharacterId)!}
                   onClose={() => setSelectedCharacterId(null)}
                 />
               ) : (

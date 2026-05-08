@@ -19,10 +19,11 @@ interface MapViewProps {
 }
 
 export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
-  const { createToken, updateToken, fetchTokens } = useCampaignStore();
+  const { createToken, updateToken, fetchTokens, updateMap, deleteMap } = useCampaignStore();
   const { fogData, setFogData } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
+  const visionCanvasRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [panDragging, setPanDragging] = useState(false);
@@ -31,6 +32,10 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [gridSize, setGridSize] = useState(map.gridSize || 50);
   const [gridOffsetX, setGridOffsetX] = useState(map.gridOffsetX || 0);
   const [gridOffsetY, setGridOffsetY] = useState(map.gridOffsetY || 0);
+  const [gridColor, setGridColor] = useState(map.gridColor || 'rgba(255,255,255,0.15)');
+  const [gridLineWidth, setGridLineWidth] = useState(map.gridLineWidth || 1);
+  const [mapW, setMapW] = useState(map.width || 30);
+  const [mapH, setMapH] = useState(map.height || 20);
   const [fogMode, setFogMode] = useState<'none' | 'paint' | 'erase'>('none');
   const [isPainting, setIsPainting] = useState(false);
   const [dragTokenId, setDragTokenId] = useState<string | null>(null);
@@ -39,32 +44,37 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [createTokenType, setCreateTokenType] = useState<string | null>(null);
 
   const gridPixels = gridSize;
+  const mapPixelWidth = (map.width || 30) * gridPixels;
+  const mapPixelHeight = (map.height || 20) * gridPixels;
 
   useEffect(() => {
     setGridSize(map.gridSize || 50);
     setGridOffsetX(map.gridOffsetX || 0);
     setGridOffsetY(map.gridOffsetY || 0);
-  }, [map.gridSize, map.gridOffsetX, map.gridOffsetY]);
+    setGridColor(map.gridColor || 'rgba(255,255,255,0.15)');
+    setGridLineWidth(map.gridLineWidth || 1);
+    setMapW(map.width || 30);
+    setMapH(map.height || 20);
+  }, [map.gridSize, map.gridOffsetX, map.gridOffsetY, map.gridColor, map.gridLineWidth, map.width, map.height]);
 
-  // Initialize fog canvas from stored fogData
+  // Initialize fog canvas from stored fogData (transparent = no fog = fully revealed)
   useEffect(() => {
     const canvas = fogCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (fogData) {
       const img = new Image();
       img.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
       img.src = fogData;
-    } else {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-  }, [fogData, map.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fogData, map.id, mapPixelWidth, mapPixelHeight]);
 
   // Listen for fog updates from other users
   useEffect(() => {
@@ -74,6 +84,49 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     socket.on('map:fog:update', handler);
     return () => { socket.off('map:fog:update', handler); };
   }, [socket, setFogData]);
+
+  // Draw vision range circle for selected token
+  useEffect(() => {
+    const canvas = visionCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!selectedTokenId) return;
+    const token = tokens.find(t => t.id === selectedTokenId);
+    if (!token || !token.darkvision || token.darkvision <= 0) return;
+
+    // 1 grid = 5 ft, radius in grid units = darkvision / 5
+    const radiusGrids = token.darkvision / 5;
+    const radiusPx = radiusGrids * gridPixels;
+
+    // Token center in canvas (pixel) space
+    const cx = token.x * gridPixels;
+    const cy = token.y * gridPixels;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(79, 195, 247, 0.08)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(79, 195, 247, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Also draw speed circle (dashed)
+    if (token.speed && token.speed > 0) {
+      const speedGrids = token.speed / 5;
+      const speedRadiusPx = speedGrids * gridPixels;
+      ctx.beginPath();
+      ctx.arc(cx, cy, speedRadiusPx, 0, Math.PI * 2);
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(255, 152, 0, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }, [selectedTokenId, tokens, gridPixels, scale, offset, mapPixelWidth, mapPixelHeight]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -231,8 +284,10 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const applyGridSettings = () => {
     socket.emit('map:grid:update', {
       campaignId: map.campaignId,
-      grid: { gridSize, gridOffsetX, gridOffsetY },
+      grid: { gridSize, gridOffsetX, gridOffsetY, gridColor, gridLineWidth },
     });
+    updateMap(map.id, { width: mapW, height: mapH, gridColor, gridLineWidth });
+    setShowGridSettings(false);
   };
 
   return (
@@ -254,16 +309,21 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           alt={map.name}
           className="absolute"
           style={{
+            width: mapPixelWidth,
+            height: mapPixelHeight,
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
             transformOrigin: '0 0',
             pointerEvents: 'none',
+            objectFit: 'fill',
           }}
         />
       )}
 
       {/* Grid */}
       <svg
-        className="absolute inset-0"
+        className="absolute"
+        width={mapPixelWidth}
+        height={mapPixelHeight}
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: '0 0',
@@ -282,20 +342,33 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             <path
               d={`M ${gridPixels} 0 L 0 0 0 ${gridPixels}`}
               fill="none"
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="1"
+              stroke={gridColor}
+              strokeWidth={gridLineWidth}
             />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
       </svg>
 
+      {/* Vision Range Canvas */}
+      <canvas
+        ref={visionCanvasRef}
+        className="absolute"
+        width={mapPixelWidth}
+        height={mapPixelHeight}
+        style={{
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+          transformOrigin: '0 0',
+          pointerEvents: 'none',
+        }}
+      />
+
       {/* Fog of War Canvas */}
       <canvas
         ref={fogCanvasRef}
-        className="absolute inset-0"
-        width={1920}
-        height={1080}
+        className="absolute"
+        width={mapPixelWidth}
+        height={mapPixelHeight}
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: '0 0',
@@ -517,12 +590,27 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
       {/* Grid Settings Panel */}
       {showGridSettings && isDM && (
-        <div className="absolute top-2 right-2 bg-dnd-surface border border-dnd-accent rounded-lg p-4 shadow-xl z-20 w-64" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-2 right-2 bg-dnd-surface border border-dnd-accent rounded-lg p-4 shadow-xl z-20 w-72 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-sm">Grid Settings</h3>
+            <h3 className="font-bold text-sm">Map & Grid Settings</h3>
             <button onClick={() => setShowGridSettings(false)} className="text-dnd-muted hover:text-dnd-text">✕</button>
           </div>
           <div className="space-y-3">
+            {/* Map dimensions */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-xs text-dnd-muted mb-1">Grid W</label>
+                <input type="number" min={5} max={200} value={mapW}
+                  onChange={(e) => setMapW(parseInt(e.target.value) || 5)}
+                  className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1.5 text-sm" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-dnd-muted mb-1">Grid H</label>
+                <input type="number" min={5} max={200} value={mapH}
+                  onChange={(e) => setMapH(parseInt(e.target.value) || 5)}
+                  className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1.5 text-sm" />
+              </div>
+            </div>
             <div>
               <label className="block text-xs text-dnd-muted mb-1">Grid Size (px)</label>
               <input type="number" min={10} max={200} value={gridSize}
@@ -541,7 +629,59 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                 onChange={(e) => setGridOffsetY(parseInt(e.target.value) || 0)}
                 className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1.5 text-sm" />
             </div>
+
+            {/* Grid Line Color */}
+            <div>
+              <label className="block text-xs text-dnd-muted mb-1">Grid Line Color</label>
+              <div className="flex gap-2">
+                <input type="color" value={gridColor.startsWith('rgba') ? '#ffffff' : gridColor}
+                  onChange={(e) => {
+                    // preserve alpha from rgba, or use full opacity for hex
+                    const alpha = gridColor.startsWith('rgba') ? parseFloat(gridColor.split(',').pop() || '1') : 1;
+                    const hex = e.target.value;
+                    const r = parseInt(hex.slice(1,3), 16);
+                    const g = parseInt(hex.slice(3,5), 16);
+                    const b = parseInt(hex.slice(5,7), 16);
+                    setGridColor(`rgba(${r},${g},${b},${alpha})`);
+                  }}
+                  className="w-10 h-8 rounded cursor-pointer border border-dnd-accent bg-dnd-bg"
+                />
+                <input type="text" value={gridColor}
+                  onChange={(e) => setGridColor(e.target.value)}
+                  className="flex-1 bg-dnd-bg border border-dnd-accent rounded px-2 py-1.5 text-sm font-mono"
+                  placeholder="rgba(255,255,255,0.15)"
+                />
+              </div>
+            </div>
+
+            {/* Grid Line Width */}
+            <div>
+              <label className="block text-xs text-dnd-muted mb-1">Grid Line Width (px)</label>
+              <input type="range" min={1} max={5} value={gridLineWidth}
+                onChange={(e) => setGridLineWidth(parseInt(e.target.value))}
+                className="w-full accent-dnd-primary"
+              />
+              <div className="flex justify-between text-xs text-dnd-muted">
+                <span>1</span><span>{gridLineWidth}px</span><span>5</span>
+              </div>
+            </div>
+
             <button onClick={applyGridSettings} className="w-full bg-dnd-primary text-white py-1.5 rounded text-sm font-semibold hover:opacity-90">Apply</button>
+
+            {/* Delete Map */}
+            <div className="pt-3 border-t border-dnd-accent/30">
+              <button
+                onClick={() => {
+                  if (confirm(`Delete map "${map.name}"? This cannot be undone.`)) {
+                    deleteMap(map.id);
+                    setShowGridSettings(false);
+                  }
+                }}
+                className="w-full bg-red-900/40 text-red-300 py-1.5 rounded text-sm font-semibold hover:bg-red-900/60 transition-colors"
+              >
+                Delete Map
+              </button>
+            </div>
           </div>
         </div>
       )}

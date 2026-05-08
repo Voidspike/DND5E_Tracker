@@ -52,18 +52,20 @@ model CampaignPlayer {
 }
 
 model Map {
-  id          String   @id @default(uuid())
-  campaignId  String
-  campaign    Campaign @relation(fields: [campaignId], references: [id])
-  name        String
-  imageUrl    String
-  width       Int      @default(0)
-  height      Int      @default(0)
-  gridSize    Int      @default(50)
-  gridOffsetX Int      @default(0)
-  gridOffsetY Int      @default(0)
-  fogData     Json?
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  campaignId    String
+  campaign      Campaign @relation(fields: [campaignId], references: [id])
+  name          String
+  imageUrl      String
+  width         Int      @default(0)
+  height        Int      @default(0)
+  gridSize      Int      @default(50)
+  gridOffsetX   Int      @default(0)
+  gridOffsetY   Int      @default(0)
+  gridColor     String   @default("rgba(255,255,255,0.15)")
+  gridLineWidth Int      @default(1)
+  fogData       Json?
+  createdAt     DateTime @default(now())
 
   tokens Token[]
 }
@@ -85,32 +87,63 @@ model Token {
   hpCurrent     Int?
   hpMax         Int?
   ac            Int?
+  darkvision    Int?
+  speed         Int?
   isHidden      Boolean  @default(false)
   statusEffects Json?    @default("[]")
   createdAt     DateTime @default(now())
 }
 
 model Character {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  name       String
-  class      String
-  level      Int      @default(1)
-  race       String
-  hpCurrent  Int
-  hpMax      Int
-  tempHp     Int      @default(0)
-  ac         Int
-  stats      Json
-  skills     Json?
-  spells     Json?
-  inventory  Json?
-  notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  campaignId        String
+  campaign          Campaign @relation(fields: [campaignId], references: [id])
+  name              String
+  class             String
+  level             Int      @default(1)
+  race              String
+  subrace           String?
+  gender            String?
+  age               Int?
+  height            String?
+  weight            String?
+  alignment         String?
+  faith             String?
+  xp                Int      @default(0)
+  proficiency       Int      @default(2)
+  hpCurrent         Int
+  hpMax             Int
+  tempHp            Int      @default(0)
+  ac                Int
+  initiative        Int      @default(0)
+  speed             Int      @default(30)
+  darkvision        Int      @default(0)
+  passivePerception Int      @default(10)
+  spellcastingClass String?
+  spellcastingAbility String?
+  spellSaveDc       Int?
+  spellAttackBonus  Int?
+  hitDice           String?
+  stats             Json
+  statSaveProficiencies Json?
+  skills            Json?
+  skillProficiencies    Json?
+  spells            Json?
+  spellSlots        Json?
+  weapons           Json?
+  armor             Json?
+  currency          Json?
+  equipment         Json?
+  inventory         Json?
+  resistances       String?
+  immunities        String?
+  languages         String?
+  toolProficiencies String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model CombatTracker {

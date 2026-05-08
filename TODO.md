@@ -20,41 +20,42 @@
 ## Phase 2 — 核心功能完善
 
 ### 地图系统
-- [x] **地图上传**：支持通过 UI 上传图片文件（非仅 URL），对接 multer 或云存储
-- [x] **网格设置面板**：DM 在房间内可实时调整网格大小、偏移量（当前只有 API）
-- [x] **战争迷雾**：DM 绘制/擦除迷雾，实时同步到玩家（后端有 model，前端无 UI）
-- [x] **多地图切换**：支持在多个地图间切换查看，DM 可设置默认地图
+- [x] **地图上传**：文件上传 + URL，Multer 存储
+- [x] **网格设置面板**：网格宽高/像素大小/偏移/颜色/粗细，删除地图
+- [x] **战争迷雾**：DM 绘制/擦除，实时同步，新地图默认透明（无雾）
+- [x] **多地图切换**：标签栏切换，DM 管理
 - [ ] **地图缩放/平移优化**：触摸板手势支持、平滑过渡
 
 ### 棋子系统
-- [x] **棋子拖动**：拖拽移动棋子并实时同步位置（当前通过点击放置）
-- [x] **棋子类型选择器**：创建时选择 character/npc/monster/object，带图标
-- [ ] **状态效果 UI**：给棋子添加/移除状态效果（显示已支持，缺增删 UI）
-- [x] **血量条实时编辑**：在棋子上一键 +/- HP
-- [x] **隐藏/显示棋子**：DM 切换棋子对玩家可见性（已解除 display:none）
+- [x] **棋子拖动**：拖拽移动 + 实时同步
+- [x] **棋子类型选择器**：PC/NPC/Monster/Object + 图标 + 颜色
+- [ ] **状态效果 UI**：增删状态效果（目前仅显示已有效果）
+- [x] **血量条实时编辑**：一键 +/- HP
+- [x] **隐藏/显示棋子**：DM 切换可见性
 
 ### 战斗追踪
-- [x] **自动先攻排序**：添加参与者后按 initiative 降序排列
-- [ ] **回合倒计时**：每个回合的可选时间限制
-- [ ] **战斗日志**：记录每个回合的操作
-- [x] **DM 手动调整先攻**：在列表内直接编辑数字（点击 initiative 编辑）
+- [x] **自动先攻排序**：按 initiative 降序
+- [ ] **回合倒计时**：每回合可选时间限制
+- [ ] **战斗日志**：记录每回合操作
+- [x] **DM 手动调整先攻**：点击 initiative 行内编辑
 
-### 角色卡
-- [x] **角色卡编辑表单**：已实现完整 CharacterSheet 组件，支持编辑 stats/HP/AC/notes
-- [x] **属性/技能加点**：str/dex/con/int/wis/cha 编辑
-- [ ] **法术位追踪**：记录可用/已用法术位（Prisma 有 spells JSON 字段，缺专用 UI）
-- [ ] **装备/物品管理**：背包界面（Prisma 有 inventory JSON 字段，缺专用 UI）
-- [ ] **快捷投骰**：从角色卡直接投相关属性/技能骰
+### 角色卡 ✅
+- [x] **DND 5E 完整角色卡**：40+ 字段，6 标签页（Info/Stats/Combat/Skills/Spells/Equip）
+- [x] **属性/技能**：6 属性 + 豁免熟练 + 18 项技能 + 熟练标记
+- [x] **法术位追踪**：每环可视化圆点，点击消耗/恢复
+- [x] **装备/物品**：武器/货币/装备
+- [x] **视野/距离网格**：1格=5ft，darkvision 实线圈 + speed 虚线圈
+- [ ] **快捷投骰**：从角色卡直接投属性/技能骰
 
 ### 骰子系统
-- [ ] **骰子投掷动画**：视觉骰子滚动效果（3D CSS 或 Canvas）
-- [x] **骰子组合**：同时投掷多个骰子（如 2d6+1d8），支持 Multi Mode
-- [x] **快捷预设**：保存常用投骰公式（如 "Perception: d20+5"），localStorage 持久化
+- [ ] **骰子投掷动画**：3D CSS 或 Canvas
+- [x] **骰子组合**：Multi Mode（如 2d6+1d8）
+- [x] **快捷预设**：localStorage 保存/加载投骰公式
 
 ### 聊天系统
-- [x] **私聊 DM**：玩家发消息仅 DM 可见（ChatPanel 已添加 Whisper 切换按钮）
-- [x] **系统通知**：玩家加入/离开、战斗开始/结束自动消息
-- [ ] **消息类型区分**：文本/骰子结果/系统消息不同样式（已部分支持 system/dice/whisper 标签）
+- [x] **私聊 DM**：Whisper 切换按钮
+- [x] **系统通知**：加入/离开/战斗事件自动消息
+- [ ] **消息类型区分完善**：system/dice/whisper 已有标签，可美化
 - [ ] **表情/快捷回复**
 
 ---
@@ -67,28 +68,28 @@
 - [ ] **虚拟键盘适配**：输入时视图不遮挡
 
 ### 视觉与交互
-- [ ] **暗色主题优化**：统一 design tokens，减少视觉噪音
-- [ ] **地图标注工具**：DM 在地图上绘制箭头、圆圈、文字标注
-- [ ] **粒子/动效**：骰子投掷、战斗命中、法术效果等轻量动画
-- [ ] **右键菜单**：在棋子上右键弹出快捷操作
+- [ ] **暗色主题优化**：统一 design tokens
+- [ ] **地图标注工具**：箭头、圆圈、文字标注
+- [ ] **粒子/动效**：骰子、战斗、法术效果
+- [ ] **右键菜单**：棋子快捷操作
 
 ### DM 工具
-- [ ] **模板系统**：预设怪物/NPC 模板，快速放置
-- [ ] **战役统计**：总游戏时长、战斗次数、投骰统计
-- [ ] **数据导出/导入**：导出战役存档为 JSON
-- [ ] **玩家视角预览**：DM 可切换看到玩家看到的画面（含迷雾影响）
+- [ ] **模板系统**：预设怪物/NPC 模板
+- [ ] **战役统计**：游戏时长、战斗次数、投骰统计
+- [ ] **数据导出/导入**：JSON 存档
+- [ ] **玩家视角预览**：DM 切换查看玩家画面（含迷雾）
 
 ### 多人体验
-- [ ] **DM 相机同步**：DM 滚动/缩放地图时，可选同步玩家视角
-- [ ] **在线玩家面板**：显示谁在线、角色对应关系
-- [ ] **观察者模式**：只读观众（设计中有但未实现）
+- [ ] **DM 相机同步**：同步玩家视角
+- [ ] **在线玩家面板**：谁在线、角色对应
+- [ ] **观察者模式**：只读观众
 
 ---
 
 ## 基础建设
 
 ### 测试
-- [ ] **后端单元测试**：API route 测试（Jest / Vitest）
+- [ ] **后端单元测试**：API route 测试
 - [ ] **Socket 事件测试**：WebSocket 处理器测试
 - [ ] **前端组件测试**：React Testing Library
 - [ ] **E2E 测试**：Cypress / Playwright
@@ -96,45 +97,51 @@
 ### CI/CD
 - [ ] **GitHub CI**：PR 自动 lint + type check + test
 - [ ] **Docker 多阶段构建**：生产镜像
-- [ ] **部署配置**：前端 Vercel/Netlify + 后端服务器部署脚本
-- [ ] **环境变量治理**：dev/staging/prod 环境配置分离
+- [ ] **部署配置**：Vercel/Netlify + 后端部署脚本
+- [ ] **环境变量治理**：dev/staging/prod 分离
 
 ### 代码质量
-- [ ] **TypeScript 严格模式**：消除所有 any 类型（API + stores 已处理，组件仍有残留 any）
-- [ ] **API 错误统一处理**：全局 error handler + 错误码规范
-- [ ] **请求验证**：Zod schema 覆盖所有接口
-- [ ] **日志系统**：服务端结构化日志（pino / winston）
+- [ ] **TypeScript 严格 any 消除**：API + stores 已处理，组件仍有残留
+- [ ] **API 错误统一处理**：全局 error handler
+- [ ] **请求验证**：Zod schema 全覆盖
+- [ ] **日志系统**：pino / winston
 - [ ] **Rate limiting**：API 频率限制
 
 ### 安全
 - [ ] **输入消毒**：XSS 防护
 - [ ] **CORS 加固**：生产环境严格配置
 - [ ] **密码策略**：强度要求、重试限制
-- [ ] **WebSocket 认证校验**：每个事件校验用户权限
+- [ ] **WebSocket 认证校验**：每个事件校验权限
 
 ---
 
 ## 已知问题
 
-- [x] 创建战役时后端未同时添加 DM 到 CampaignPlayer 表
-- [x] Socket `token:move` 房间范围未校验（可能跨房间广播）
-- [x] CampaignPage 的 `fetchTokens(maps[0].id)` 硬编码只加载第一个地图的棋子
-- [x] 无 loading skeleton，切换标签时白屏
-- [x] 后端无文件上传端点，地图图片只能用 URL
-- [ ] ~~combat:prev_turn 缺失~~ → **已修复**（添加 handler + client listener + isActiveTurn 逻辑）
-- [ ] ~~combat:initiative:update 缺失~~ → **已修复**（添加 handler + client listener + UI inline editing）
-- [ ] ~~战斗 isActiveTurn 从未设置~~ → **已修复**（combat:next_turn/prev_turn 中设置）
-- [ ] ~~角色卡 UI 为空~~ → **已修复**（CharacterSheet + CharacterList 组件）
-- [ ] ~~Token 隐藏按钮 display:none~~ → **已修复**（已启用，绑定到 selectedTokenId）
-- [ ] ~~私聊 DM 缺 UI~~ → **已修复**（ChatPanel Whisper 切换）
-- [ ] Map fog/grid socket 更新使用 campaignId 而非 mapId（临时用 updateMany，多地图时可能更新错误地图）
+- [x] ~~创建战役时未加 DM 到 CampaignPlayer~~ → 已修复
+- [x] ~~Socket token:move 跨房间广播~~ → 已修复
+- [x] ~~fetchTokens 硬编码第一个地图~~ → 已修复
+- [x] ~~无 loading skeleton~~ → 已修复
+- [x] ~~后端无文件上传端点~~ → 已修复
+- [x] ~~上传本地图片 imageUrl 校验失败~~ → z.string().url() → z.string().min(1)
+- [x] ~~/uploads 未通过 Vite 代理~~ → vite.config.ts 已添加
+- [x] ~~新地图迷雾默认全黑遮住图片~~ → 新地图默认透明（无雾）
+- [x] ~~combat:prev_turn 缺失~~ → 已修复
+- [x] ~~combat:initiative:update 缺失~~ → 已修复
+- [x] ~~战斗 isActiveTurn 从未设置~~ → 已修复
+- [x] ~~角色卡 UI 为空~~ → 完整 6 标签页 DND 5E 角色卡
+- [x] ~~Token 隐藏按钮 display:none~~ → 已修复
+- [x] ~~私聊 DM 缺 UI~~ → 已修复
+- [x] ~~updateSchema 缺 width/height~~ → 已补充
+- [ ] Map fog/grid socket 使用 campaignId 更新（多地图时可能更新错误地图）
+- [ ] Token delete 未校验 token 归属 campaign
+- [ ] Character 模型 token 与 Map Token 未关联（需 characterId 字段）
 
 ---
 
 ## 开发建议
 
-1. **接手后先读 CLAUDE.md**，了解架构和当前状态
-2. **Phase 2 剩余按用户价值排序**：状态效果增删 > 法术位追踪 > 装备管理 > 倒计时 > 日志
+1. **接手后先读 CLAUDE.md**，包含架构、功能状态、Socket 事件映射、关键文件索引
+2. **剩余工作按价值排序**：状态效果增删 > 快捷投骰 > 回合倒计时 > 战斗日志 > 移动端适配
 3. **每个新功能遵循模式**：shared type → Prisma → API route → Socket event → Store → Component
-4. **测试和类型安全优先于新功能**：解决组件中残余 any 类型 + 写核心 API 测试后再加功能
-5. **CLAUDE.md 是本项目的 AI 入职文档**，关键变更后请同步更新
+4. **测试和类型安全优先于新功能**
+5. **Schema 变更后用 `prisma db push`（非 `migrate dev`）**，后者在非 TTY 环境会挂起

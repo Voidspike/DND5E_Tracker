@@ -75,6 +75,8 @@ export interface MapData {
   gridSize: number;
   gridOffsetX: number;
   gridOffsetY: number;
+  gridColor: string;
+  gridLineWidth: number;
   fogData: string | null;
   createdAt: string;
 }
@@ -85,12 +87,18 @@ export interface CreateMapRequest {
   width?: number;
   height?: number;
   gridSize?: number;
+  gridColor?: string;
+  gridLineWidth?: number;
 }
 
 export interface UpdateGridRequest {
   gridSize?: number;
   gridOffsetX?: number;
   gridOffsetY?: number;
+  gridColor?: string;
+  gridLineWidth?: number;
+  width?: number;
+  height?: number;
 }
 
 // ─── Token ───
@@ -112,6 +120,8 @@ export interface Token {
   hpCurrent: number | null;
   hpMax: number | null;
   ac: number | null;
+  darkvision: number | null;
+  speed: number | null;
   isHidden: boolean;
   statusEffects: string[];
   createdAt: string;
@@ -129,6 +139,8 @@ export interface CreateTokenRequest {
   hpCurrent?: number;
   hpMax?: number;
   ac?: number;
+  darkvision?: number;
+  speed?: number;
 }
 
 export interface UpdateTokenRequest {
@@ -144,6 +156,8 @@ export interface UpdateTokenRequest {
   hpCurrent?: number | null;
   hpMax?: number | null;
   ac?: number | null;
+  darkvision?: number | null;
+  speed?: number | null;
   isHidden?: boolean;
   statusEffects?: string[];
 }
@@ -166,14 +180,43 @@ export interface Character {
   class: string;
   level: number;
   race: string;
+  subrace: string | null;
+  gender: string | null;
+  age: number | null;
+  height: string | null;
+  weight: string | null;
+  alignment: string | null;
+  faith: string | null;
+  xp: number;
+  proficiency: number;
   hpCurrent: number;
   hpMax: number;
   tempHp: number;
   ac: number;
+  initiative: number;
+  speed: number;
+  darkvision: number;
+  passivePerception: number;
+  spellcastingClass: string | null;
+  spellcastingAbility: string | null;
+  spellSaveDc: number | null;
+  spellAttackBonus: number | null;
+  hitDice: string | null;
   stats: CharacterStats;
+  statSaveProficiencies: string[] | null;
   skills: Record<string, number> | null;
+  skillProficiencies: string[] | null;
   spells: Record<string, unknown> | null;
+  spellSlots: Record<string, { max: number; used: number }> | null;
+  weapons: Record<string, unknown>[] | null;
+  armor: Record<string, unknown> | null;
+  currency: Record<string, number> | null;
+  equipment: Record<string, unknown>[] | null;
   inventory: Record<string, unknown> | null;
+  resistances: string | null;
+  immunities: string | null;
+  languages: string | null;
+  toolProficiencies: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -186,6 +229,16 @@ export interface CreateCharacterRequest {
   stats: CharacterStats;
   hpMax: number;
   ac: number;
+  // optional extended fields
+  subrace?: string;
+  gender?: string;
+  level?: number;
+  proficiency?: number;
+  speed?: number;
+  darkvision?: number;
+  initiative?: number;
+  passivePerception?: number;
+  // ... other fields can be set later via update
 }
 
 // ─── Combat ───

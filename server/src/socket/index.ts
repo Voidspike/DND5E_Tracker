@@ -89,6 +89,8 @@ export function setupSocket(httpServer: HTTPServer): Server {
             hpCurrent: data.token.hpCurrent || null,
             hpMax: data.token.hpMax || null,
             ac: data.token.ac || null,
+            darkvision: data.token.darkvision || null,
+            speed: data.token.speed || null,
           },
         });
         io.to(`campaign:${data.campaignId}`).emit('token:create', token as any);

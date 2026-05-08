@@ -33,6 +33,7 @@ interface CampaignState {
 
   fetchMaps: (campaignId: string) => Promise<void>;
   createMap: (campaignId: string, data: CreateMapRequest) => Promise<void>;
+  updateMap: (id: string, data: Partial<MapData>) => Promise<void>;
   deleteMap: (id: string) => Promise<void>;
 
   fetchTokens: (mapId: string) => Promise<void>;
@@ -131,6 +132,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   createMap: async (campaignId, data) => {
     const map = await mapApi.create(campaignId, data);
     set((s) => ({ maps: [...s.maps, map] }));
+  },
+
+  updateMap: async (id, data) => {
+    const updated = await mapApi.update(id, data);
+    set((s) => ({ maps: s.maps.map((m) => (m.id === id ? updated : m)) }));
   },
 
   deleteMap: async (id) => {

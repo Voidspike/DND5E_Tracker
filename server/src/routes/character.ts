@@ -5,21 +5,31 @@ import { prisma } from '../utils/prisma';
 
 const router = Router();
 
+const statSchema = z.object({
+  str: z.number().int().min(1).max(30),
+  dex: z.number().int().min(1).max(30),
+  con: z.number().int().min(1).max(30),
+  int: z.number().int().min(1).max(30),
+  wis: z.number().int().min(1).max(30),
+  cha: z.number().int().min(1).max(30),
+});
+
 const createSchema = z.object({
   campaignId: z.string().uuid(),
   name: z.string().min(1).max(100),
   class: z.string().min(1).max(50),
   race: z.string().min(1).max(50),
-  stats: z.object({
-    str: z.number().int().min(1).max(30),
-    dex: z.number().int().min(1).max(30),
-    con: z.number().int().min(1).max(30),
-    int: z.number().int().min(1).max(30),
-    wis: z.number().int().min(1).max(30),
-    cha: z.number().int().min(1).max(30),
-  }),
+  stats: statSchema,
   hpMax: z.number().int().positive(),
   ac: z.number().int().positive(),
+  subrace: z.string().optional(),
+  gender: z.string().optional(),
+  level: z.number().int().positive().optional(),
+  proficiency: z.number().int().optional(),
+  speed: z.number().int().optional(),
+  darkvision: z.number().int().optional(),
+  initiative: z.number().int().optional(),
+  passivePerception: z.number().int().optional(),
 });
 
 const updateSchema = z.object({
@@ -27,21 +37,51 @@ const updateSchema = z.object({
   class: z.string().min(1).max(50).optional(),
   level: z.number().int().positive().optional(),
   race: z.string().min(1).max(50).optional(),
+  subrace: z.string().nullable().optional(),
+  gender: z.string().nullable().optional(),
+  age: z.number().int().nullable().optional(),
+  height: z.string().nullable().optional(),
+  weight: z.string().nullable().optional(),
+  alignment: z.string().nullable().optional(),
+  faith: z.string().nullable().optional(),
+  xp: z.number().int().optional(),
+  proficiency: z.number().int().optional(),
   hpCurrent: z.number().int().optional(),
   hpMax: z.number().int().positive().optional(),
   tempHp: z.number().int().optional(),
   ac: z.number().int().positive().optional(),
-  stats: z.object({
-    str: z.number().int().min(1).max(30),
-    dex: z.number().int().min(1).max(30),
-    con: z.number().int().min(1).max(30),
-    int: z.number().int().min(1).max(30),
-    wis: z.number().int().min(1).max(30),
-    cha: z.number().int().min(1).max(30),
-  }).optional(),
-  skills: z.record(z.number()).optional(),
-  notes: z.string().optional(),
+  initiative: z.number().int().optional(),
+  speed: z.number().int().optional(),
+  darkvision: z.number().int().optional(),
+  passivePerception: z.number().int().optional(),
+  spellcastingClass: z.string().nullable().optional(),
+  spellcastingAbility: z.string().nullable().optional(),
+  spellSaveDc: z.number().int().nullable().optional(),
+  spellAttackBonus: z.number().int().nullable().optional(),
+  hitDice: z.string().nullable().optional(),
+  stats: statSchema.optional(),
+  statSaveProficiencies: z.array(z.string()).nullable().optional(),
+  skills: z.record(z.number()).nullable().optional(),
+  skillProficiencies: z.array(z.string()).nullable().optional(),
+  spells: z.record(z.unknown()).nullable().optional(),
+  spellSlots: z.record(z.object({ max: z.number(), used: z.number() })).nullable().optional(),
+  weapons: z.array(z.record(z.unknown())).nullable().optional(),
+  armor: z.record(z.unknown()).nullable().optional(),
+  currency: z.record(z.number()).nullable().optional(),
+  equipment: z.array(z.record(z.unknown())).nullable().optional(),
+  inventory: z.record(z.unknown()).nullable().optional(),
+  resistances: z.string().nullable().optional(),
+  immunities: z.string().nullable().optional(),
+  languages: z.string().nullable().optional(),
+  toolProficiencies: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
+
+// JSON fields that need stringify
+const jsonFields = [
+  'stats', 'statSaveProficiencies', 'skills', 'skillProficiencies',
+  'spells', 'spellSlots', 'weapons', 'armor', 'currency', 'equipment', 'inventory',
+];
 
 // Get characters for a campaign
 router.get('/campaign/:campaignId', authenticate, async (req: Request, res: Response) => {
@@ -74,9 +114,17 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
         name: data.name,
         class: data.class,
         race: data.race,
+        subrace: data.subrace,
+        gender: data.gender,
+        level: data.level || 1,
         hpCurrent: data.hpMax,
         hpMax: data.hpMax,
         ac: data.ac,
+        proficiency: data.proficiency || 2,
+        initiative: data.initiative || 0,
+        speed: data.speed || 30,
+        darkvision: data.darkvision || 0,
+        passivePerception: data.passivePerception || 10,
         stats: JSON.stringify(data.stats),
       },
     });
@@ -106,17 +154,15 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
 
     const data = updateSchema.parse(req.body);
     const updateData: Record<string, unknown> = {};
-    if (data.name) updateData.name = data.name;
-    if (data.class) updateData.class = data.class;
-    if (data.level) updateData.level = data.level;
-    if (data.race) updateData.race = data.race;
-    if (data.hpCurrent !== undefined) updateData.hpCurrent = data.hpCurrent;
-    if (data.hpMax !== undefined) updateData.hpMax = data.hpMax;
-    if (data.tempHp !== undefined) updateData.tempHp = data.tempHp;
-    if (data.ac !== undefined) updateData.ac = data.ac;
-    if (data.stats) updateData.stats = JSON.stringify(data.stats);
-    if (data.skills) updateData.skills = JSON.stringify(data.skills);
-    if (data.notes !== undefined) updateData.notes = data.notes;
+
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+      if (jsonFields.includes(key)) {
+        updateData[key] = value === null ? null : JSON.stringify(value);
+      } else {
+        updateData[key] = value;
+      }
+    }
 
     const updated = await prisma.character.update({
       where: { id: req.params.id },

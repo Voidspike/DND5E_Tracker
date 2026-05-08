@@ -7,17 +7,23 @@ const router = Router();
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
-  imageUrl: z.string().url(),
+  imageUrl: z.string().min(1),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   gridSize: z.number().int().positive().default(50),
+  gridColor: z.string().optional(),
+  gridLineWidth: z.number().int().min(1).max(5).optional(),
 });
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
   gridSize: z.number().int().positive().optional(),
   gridOffsetX: z.number().int().optional(),
   gridOffsetY: z.number().int().optional(),
+  gridColor: z.string().optional(),
+  gridLineWidth: z.number().int().min(1).max(5).optional(),
 });
 
 // Get maps for a campaign
@@ -47,6 +53,8 @@ router.post('/campaign/:campaignId', authenticate, async (req: Request, res: Res
         width: data.width || 0,
         height: data.height || 0,
         gridSize: data.gridSize,
+        gridColor: data.gridColor,
+        gridLineWidth: data.gridLineWidth,
       },
     });
     res.status(201).json(map);
