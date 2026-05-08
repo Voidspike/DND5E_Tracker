@@ -546,7 +546,7 @@ function HpBar({ label, current, max, temp }: { label: string; current: number; 
           {temp > 0 && <span className="text-dnd-accent ml-1">(+{temp})</span>}
         </span>
       </div>
-      <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
+      <div className="h-2.5 bg-dnd-darker rounded-full overflow-hidden">
         <div
           className="h-full bg-dnd-success rounded-full transition-all"
           style={{ width: `${Math.min(100, (current / max) * 100)}%` }}

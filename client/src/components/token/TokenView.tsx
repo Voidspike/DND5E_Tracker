@@ -62,7 +62,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
               <span>HP</span>
               <span>{token.hpCurrent ?? '?'}/{token.hpMax}</span>
             </div>
-            <div className="h-2 bg-gray-700 rounded overflow-hidden">
+            <div className="h-2 bg-dnd-darker rounded overflow-hidden">
               <div
                 className="h-full bg-dnd-success rounded transition-all"
                 style={{ width: `${Math.max(0, ((token.hpCurrent || 0) / token.hpMax) * 100)}%` }}
@@ -111,7 +111,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
         <p className="text-xs text-dnd-muted mb-1">Status Effects</p>
         <div className="flex flex-wrap gap-1">
           {(token.statusEffects && Array.isArray(token.statusEffects) ? token.statusEffects : []).map((effect: string, i: number) => (
-            <span key={i} className="text-xs bg-yellow-900/40 text-yellow-300 px-2 py-0.5 rounded flex items-center gap-1">
+            <span key={i} className="text-xs bg-dnd-warning/20 text-dnd-warning px-2 py-0.5 rounded flex items-center gap-1">
               {effect}
               {canEdit && (
                 <button
@@ -121,7 +121,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
                     await updateToken(token.id, updates);
                     socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
                   }}
-                  className="text-yellow-400 hover:text-red-400 leading-none"
+                  className="text-dnd-warning/80 hover:text-dnd-danger leading-none"
                 >
                   ×
                 </button>
@@ -201,7 +201,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex-1 bg-gray-700 text-white py-1 rounded text-sm hover:opacity-90"
+                  className="flex-1 bg-dnd-darker text-white py-1 rounded text-sm hover:opacity-90"
                 >
                   Cancel
                 </button>
@@ -224,7 +224,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
                   socket.emit('token:delete', token.id);
                 }
               }}
-              className="w-full bg-red-900/40 text-red-300 py-1 rounded text-sm hover:bg-red-900/60"
+              className="w-full bg-dnd-danger/20 text-dnd-danger/80 py-1 rounded text-sm hover:bg-dnd-danger/30"
             >
               Delete
             </button>

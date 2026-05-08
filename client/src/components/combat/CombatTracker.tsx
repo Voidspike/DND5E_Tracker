@@ -148,7 +148,7 @@ export default function CombatTracker({ isDM, socket, campaignId, tokens }: Comb
                             participantId: p.id,
                           })
                         }
-                        className="text-xs text-red-400 hover:text-red-300"
+                        className="text-xs text-dnd-danger/70 hover:text-dnd-danger"
                       >
                         ✕
                       </button>
@@ -193,7 +193,7 @@ export default function CombatTracker({ isDM, socket, campaignId, tokens }: Comb
                 </button>
                 <button
                   onClick={handleEndCombat}
-                  className="bg-red-900/40 text-red-300 px-3 py-2 rounded text-sm hover:bg-red-900/60"
+                  className="bg-dnd-danger/20 text-dnd-danger/80 px-3 py-2 rounded text-sm hover:bg-dnd-danger/30"
                 >
                   End
                 </button>

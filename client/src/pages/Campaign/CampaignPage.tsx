@@ -254,7 +254,7 @@ export default function CampaignPage() {
               </button>
               <button
                 onClick={() => setShowInvitePopup(false)}
-                className="px-4 bg-gray-700 text-white py-2.5 rounded-lg hover:opacity-90"
+                className="px-4 bg-dnd-darker text-white py-2.5 rounded-lg hover:opacity-90"
               >
                 Close
               </button>
@@ -333,7 +333,7 @@ export default function CampaignPage() {
                 </button>
                 <button
                   onClick={() => setShowSettings(false)}
-                  className="px-4 bg-gray-700 text-white py-2.5 rounded-lg hover:opacity-90"
+                  className="px-4 bg-dnd-darker text-white py-2.5 rounded-lg hover:opacity-90"
                 >
                   Cancel
                 </button>
@@ -424,7 +424,7 @@ export default function CampaignPage() {
                 </button>
                 <button
                   onClick={() => setShowMapModal(false)}
-                  className="px-4 bg-gray-700 text-white py-2.5 rounded-lg"
+                  className="px-4 bg-dnd-darker text-white py-2.5 rounded-lg"
                 >
                   Cancel
                 </button>

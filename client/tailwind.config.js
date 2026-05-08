@@ -6,6 +6,7 @@ export default {
       colors: {
         dnd: {
           bg: '#1a1a2e',
+          darker: '#0f0f23',
           surface: '#16213e',
           primary: '#e94560',
           accent: '#0f3460',
@@ -14,6 +15,8 @@ export default {
           success: '#2ecc71',
           warning: '#f39c12',
           danger: '#e74c3c',
+          info: '#3498db',
+          purple: '#8b5cf6',
         },
       },
     },

@@ -552,11 +552,11 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
               <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 rounded px-1 py-0.5 whitespace-nowrap" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleHPChange(token, -1); }}
-                  className="text-dnd-danger text-xs leading-none hover:bg-red-900/40 rounded px-0.5"
+                  className="text-dnd-danger text-xs leading-none hover:bg-dnd-danger/20 rounded px-0.5"
                 >
                   −
                 </button>
-                <div className="w-10 h-1.5 bg-gray-700 rounded overflow-hidden mx-0.5">
+                <div className="w-10 h-1.5 bg-dnd-darker rounded overflow-hidden mx-0.5">
                   <div
                     className="h-full bg-dnd-success rounded transition-all"
                     style={{ width: `${Math.max(0, ((token.hpCurrent || 0) / token.hpMax) * 100)}%` }}
@@ -565,7 +565,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                 <span className="text-[10px] text-white font-medium">{token.hpCurrent ?? '?'}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleHPChange(token, 1); }}
-                  className="text-dnd-success text-xs leading-none hover:bg-green-900/40 rounded px-0.5"
+                  className="text-dnd-success text-xs leading-none hover:bg-dnd-success/20 rounded px-0.5"
                 >
                   +
                 </button>
@@ -574,7 +574,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
             {/* Hidden indicator */}
             {isDM && token.isHidden && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] bg-yellow-900/70 text-yellow-300 px-1 rounded" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] bg-dnd-warning/30 text-dnd-warning px-1 rounded" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
                 hidden
               </div>
             )}
@@ -806,7 +806,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                     setShowGridSettings(false);
                   }
                 }}
-                className="w-full bg-red-900/40 text-red-300 py-1.5 rounded text-sm font-semibold hover:bg-red-900/60 transition-colors"
+                className="w-full bg-dnd-danger/20 text-dnd-danger/80 py-1.5 rounded text-sm font-semibold hover:bg-dnd-danger/30 transition-colors"
               >
                 Delete Map
               </button>

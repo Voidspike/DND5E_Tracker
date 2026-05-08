@@ -174,7 +174,7 @@ export default function DiceRoller({ socket, campaignId }: DiceRollerProps) {
               </select>
               <button
                 onClick={() => removeCombo(index)}
-                className="text-dnd-muted hover:text-red-400 px-1"
+                className="text-dnd-muted hover:text-dnd-danger px-1"
                 title="Remove"
               >
                 ✕
@@ -279,7 +279,7 @@ export default function DiceRoller({ socket, campaignId }: DiceRollerProps) {
                 </button>
                 <button
                   onClick={() => handleDeletePreset(i)}
-                  className="text-[10px] text-dnd-muted hover:text-red-400"
+                  className="text-[10px] text-dnd-muted hover:text-dnd-danger"
                 >
                   ✕
                 </button>
