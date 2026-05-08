@@ -211,7 +211,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     if (!canvas) return;
     const dataUrl = canvas.toDataURL();
     setFogData(dataUrl);
-    socket.emit('map:fog:update', { campaignId: map.campaignId, fogData: dataUrl });
+    socket.emit('map:fog:update', { mapId: map.id, campaignId: map.campaignId, fogData: dataUrl });
   };
 
   const clearAllFog = () => {
@@ -283,6 +283,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
   const applyGridSettings = () => {
     socket.emit('map:grid:update', {
+      mapId: map.id,
       campaignId: map.campaignId,
       grid: { gridSize, gridOffsetX, gridOffsetY, gridColor, gridLineWidth },
     });

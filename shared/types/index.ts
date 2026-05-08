@@ -124,6 +124,7 @@ export interface Token {
   speed: number | null;
   isHidden: boolean;
   statusEffects: string[];
+  characterId: string | null;
   createdAt: string;
 }
 
@@ -141,6 +142,7 @@ export interface CreateTokenRequest {
   ac?: number;
   darkvision?: number;
   speed?: number;
+  characterId?: string;
 }
 
 export interface UpdateTokenRequest {
@@ -160,6 +162,7 @@ export interface UpdateTokenRequest {
   speed?: number | null;
   isHidden?: boolean;
   statusEffects?: string[];
+  characterId?: string | null;
 }
 
 // ─── Character ───

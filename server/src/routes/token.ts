@@ -17,6 +17,7 @@ const createSchema = z.object({
   hpCurrent: z.number().int().optional(),
   hpMax: z.number().int().optional(),
   ac: z.number().int().optional(),
+  characterId: z.string().uuid().nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -34,6 +35,7 @@ const updateSchema = z.object({
   ac: z.number().int().nullable().optional(),
   isHidden: z.boolean().optional(),
   statusEffects: z.array(z.string()).optional(),
+  characterId: z.string().uuid().nullable().optional(),
 });
 
 // Get tokens for a campaign
@@ -78,6 +80,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
         hpCurrent: data.hpCurrent || null,
         hpMax: data.hpMax || null,
         ac: data.ac || null,
+        characterId: data.characterId || null,
       },
     });
     res.status(201).json(token);

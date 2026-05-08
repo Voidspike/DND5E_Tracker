@@ -91,6 +91,7 @@ model Token {
   speed         Int?
   isHidden      Boolean  @default(false)
   statusEffects Json?    @default("[]")
+  characterId   String?
   createdAt     DateTime @default(now())
 }
 

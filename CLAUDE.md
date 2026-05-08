@@ -93,9 +93,6 @@ shared/types/index.ts  →  Prisma schema  →  API route  →  Socket event  �
 - **Redis configured but unused** in application code
 - **No rate limiting** on API endpoints
 - **No global Express error handler** middleware
-- **Token delete** in socket handler doesn't verify the token belongs to the campaign before deleting
-- **Map fog/grid socket updates** use `updateMany` with `campaignId` instead of targeting a specific map (bug for multi-map campaigns)
-- **Character sheet** fully synced to backend; no connection between Character model and map Tokens (need to link characterId on Token)
 
 ## Server Socket Event Map
 

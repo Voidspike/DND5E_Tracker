@@ -10,7 +10,7 @@ interface TokenViewProps {
 }
 
 export default function TokenView({ token, isDM, userId, socket }: TokenViewProps) {
-  const { updateToken, deleteToken } = useCampaignStore();
+  const { updateToken, deleteToken, characters } = useCampaignStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(token?.name || '');
   const [hp, setHp] = useState(token?.hpCurrent?.toString() || '');
@@ -81,6 +81,30 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
           <span className="font-mono text-xs">({token.x.toFixed(1)}, {token.y.toFixed(1)})</span>
         </div>
       </div>
+
+      {/* Character Link */}
+      {canEdit && (
+        <div className="mt-3">
+          <p className="text-xs text-dnd-muted mb-1">Link Character</p>
+          <select
+            value={token.characterId || ''}
+            onChange={async (e) => {
+              const charId = e.target.value || null;
+              const updates = { characterId: charId };
+              await updateToken(token.id, updates);
+              socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
+            }}
+            className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1 text-sm"
+          >
+            <option value="">None</option>
+            {characters.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name} (Lv{c.level} {c.class})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Status Effects */}
       <div className="mt-3">

@@ -105,6 +105,7 @@ export function setupSocket(httpServer: HTTPServer): Server {
             ac: data.token.ac || null,
             darkvision: data.token.darkvision || null,
             speed: data.token.speed || null,
+            characterId: data.token.characterId || null,
           },
         });
         io.to(`campaign:${data.campaignId}`).emit('token:create', token as any);
@@ -149,9 +150,11 @@ export function setupSocket(httpServer: HTTPServer): Server {
       }
     });
 
-    socket.on('token:delete', (tokenId: string) => {
+    socket.on('token:delete', async (tokenId: string) => {
       if (!socket.campaignId) return;
-      prisma.token.delete({ where: { id: tokenId } }).catch(console.error);
+      const token = await prisma.token.findUnique({ where: { id: tokenId } });
+      if (!token || token.campaignId !== socket.campaignId) return;
+      await prisma.token.delete({ where: { id: tokenId } });
       io.to(`campaign:${socket.campaignId}`).emit('token:delete', tokenId);
     });
 
@@ -164,14 +167,14 @@ export function setupSocket(httpServer: HTTPServer): Server {
     socket.on('map:fog:update', (data) => {
       if (!socket.campaignId) return;
       prisma.map
-        .updateMany({ where: { campaignId: data.campaignId }, data: { fogData: data.fogData } })
+        .update({ where: { id: data.mapId }, data: { fogData: data.fogData } })
         .catch(console.error);
       socket.to(`campaign:${data.campaignId}`).emit('map:fog:update', data.fogData);
     });
 
     socket.on('map:grid:update', (data) => {
       prisma.map
-        .updateMany({ where: { campaignId: data.campaignId }, data: data.grid })
+        .update({ where: { id: data.mapId }, data: data.grid })
         .catch(console.error);
       socket.to(`campaign:${data.campaignId}`).emit('map:grid:update', data.grid);
     });

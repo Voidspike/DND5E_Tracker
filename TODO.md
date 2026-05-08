@@ -36,7 +36,7 @@
 ### 战斗追踪
 - [x] **自动先攻排序**：按 initiative 降序
 - [ ] **回合倒计时**：每回合可选时间限制
-- [ ] **战斗日志**：记录每回合操作
+- [x] **战斗日志**：记录每回合操作
 - [x] **DM 手动调整先攻**：点击 initiative 行内编辑
 
 ### 角色卡 ✅
@@ -132,9 +132,9 @@
 - [x] ~~Token 隐藏按钮 display:none~~ → 已修复
 - [x] ~~私聊 DM 缺 UI~~ → 已修复
 - [x] ~~updateSchema 缺 width/height~~ → 已补充
-- [ ] Map fog/grid socket 使用 campaignId 更新（多地图时可能更新错误地图）
-- [ ] Token delete 未校验 token 归属 campaign
-- [ ] Character 模型 token 与 Map Token 未关联（需 characterId 字段）
+- [x] Map fog/grid socket 使用 campaignId 更新（已改为单 mapId 更新）
+- [x] Token delete 未校验 token 归属 campaign（已添加归属校验）
+- [x] Character 模型 token 与 Map Token 关联（已添加 characterId 字段 + UI 下拉框）
 
 ---
 
