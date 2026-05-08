@@ -41,6 +41,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [fogMode, setFogMode] = useState<'none' | 'paint' | 'erase'>('none');
   const [annotateMode, setAnnotateMode] = useState(false);
   const [annotateColor, setAnnotateColor] = useState('#e94560');
+  const [playerViewMode, setPlayerViewMode] = useState(false);
   const [isPainting, setIsPainting] = useState(false);
   const [dragTokenId, setDragTokenId] = useState<string | null>(null);
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
@@ -753,7 +754,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
       })()}
 
       {/* Token Creation Toolbar (DM only) */}
-      {isDM && (
+      {isDM && !playerViewMode && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-dnd-surface/90 border border-dnd-accent rounded-lg px-2 py-1.5 flex items-center gap-1 shadow-lg z-20">
           {TOKEN_TYPES.map((t) => (
             <button
@@ -826,6 +827,18 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
         </button>
         {isDM && (
           <>
+            <button
+              onClick={() => { setPlayerViewMode(!playerViewMode); if (!playerViewMode) { setFogMode('none'); setAnnotateMode(false); } }}
+              className={`w-8 h-8 rounded text-xs font-bold flex items-center justify-center transition-colors ${
+                playerViewMode
+                  ? 'bg-dnd-info text-white ring-2 ring-dnd-info'
+                  : 'bg-dnd-surface border border-dnd-accent text-white hover:bg-dnd-accent'
+              }`}
+              title="Preview as Player"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            </button>
+            {!playerViewMode && (<>
             <button
               onClick={() => setShowGridSettings(true)}
               className="bg-dnd-surface border border-dnd-accent text-white w-8 h-8 rounded hover:bg-dnd-accent flex items-center justify-center"
@@ -902,9 +915,17 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </button>
+            </>)}
           </>
         )}
       </div>
+
+      {/* Player view indicator */}
+      {playerViewMode && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-dnd-info/80 text-white text-xs px-3 py-1.5 rounded-full z-30 pointer-events-none">
+          👁 Previewing as Player
+        </div>
+      )}
 
       {/* Map name overlay */}
       <div className="absolute top-14 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">

@@ -29,6 +29,7 @@ export default function CampaignPage() {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [showInvitePopup, setShowInvitePopup] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showOnlinePanel, setShowOnlinePanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsName, setSettingsName] = useState('');
   const [settingsDesc, setSettingsDesc] = useState('');
@@ -179,7 +180,9 @@ export default function CampaignPage() {
             <h1 className="font-bold truncate">{currentCampaign.name}</h1>
             <div className="flex items-center gap-2 text-xs text-dnd-muted">
               {isDM && <span className="bg-dnd-primary/20 text-dnd-primary px-1.5 py-0.5 rounded font-medium">DM</span>}
-              <span>{onlinePlayers.length} online</span>
+              <button onClick={() => setShowOnlinePanel(!showOnlinePanel)} className="hover:text-dnd-text transition-colors rounded px-1 -mx-1">
+                {onlinePlayers.length} online{showOnlinePanel ? ' ▾' : ' ▸'}
+              </button>
               <span className="hidden sm:inline">· {allPlayers.length + 1} members</span>
             </div>
           </div>
@@ -226,6 +229,53 @@ export default function CampaignPage() {
           )}
         </div>
       </header>
+
+      {/* Online Player Panel */}
+      {showOnlinePanel && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowOnlinePanel(false)}>
+          <div className="absolute top-12 left-3 sm:left-4 bg-dnd-surface border border-dnd-accent rounded-xl p-4 shadow-2xl min-w-52" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xs font-semibold text-dnd-muted mb-3 uppercase tracking-wider">Online Players</h3>
+            <div className="space-y-2">
+              {/* DM */}
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-6 h-6 bg-dnd-primary/30 rounded-full flex items-center justify-center text-xs font-bold text-dnd-primary">
+                  {currentCampaign?.dm?.username?.charAt(0).toUpperCase() || 'D'}
+                </div>
+                <div className="min-w-0">
+                  <span className="text-dnd-text font-medium text-xs">{currentCampaign?.dm?.username || 'DM'}</span>
+                  <span className="text-[10px] text-dnd-primary bg-dnd-primary/10 px-1.5 py-0.5 rounded ml-1">DM</span>
+                </div>
+              </div>
+              {/* Online Players */}
+              {onlinePlayers.filter((p: any) => p.userId !== currentCampaign?.dmId).map((p: any) => {
+                const char = characters.find((c: any) => c.userId === p.userId);
+                return (
+                  <div key={p.userId} className="flex items-center gap-2 text-sm">
+                    <div className="w-6 h-6 bg-dnd-accent/40 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                      {p.username?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-dnd-text font-medium text-xs truncate">{p.username}</span>
+                      {char && (
+                        <span className="text-[10px] text-dnd-muted ml-1">as {char.name}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {onlinePlayers.length <= 1 && (
+                <p className="text-xs text-dnd-muted">No other players online</p>
+              )}
+            </div>
+            {/* Total members */}
+            <div className="mt-3 pt-3 border-t border-dnd-accent/30">
+              <p className="text-xs text-dnd-muted">
+                {allPlayers.length + 1} members total · {onlinePlayers.length} online
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite Popup */}
       {showInvitePopup && (
@@ -323,6 +373,28 @@ export default function CampaignPage() {
                   onChange={(e) => setSettingsDesc(e.target.value)}
                   className="w-full bg-dnd-bg border border-dnd-accent rounded-lg px-3 py-2.5 text-dnd-text focus:outline-none focus:border-dnd-primary resize-none h-24"
                 />
+              </div>
+              <div className="pt-2 border-t border-dnd-accent/30">
+                <label className="block text-sm text-dnd-muted mb-2">Data</label>
+                <button
+                  onClick={() => {
+                    const data = {
+                      campaign: { name: currentCampaign.name, description: currentCampaign.description },
+                      maps, tokens, characters,
+                      exportedAt: new Date().toISOString(),
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${currentCampaign.name.replace(/[^a-zA-Z0-9]/g, '_')}_backup.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="w-full bg-dnd-accent/40 hover:bg-dnd-accent/60 text-white py-2 rounded-lg text-sm transition-colors"
+                >
+                  📥 Export Campaign (JSON)
+                </button>
               </div>
               <div className="flex gap-2 pt-2">
                 <button
