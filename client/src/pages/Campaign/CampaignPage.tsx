@@ -21,7 +21,7 @@ export default function CampaignPage() {
   const { user } = useAuthStore();
   const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokensByCampaign, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
     useCampaignStore();
-  const { selectedTokenId, onlinePlayers, setFogData } = useGameStore();
+  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages } = useGameStore();
   const socket = useSocket(id);
 
   const [activeTab, setActiveTab] = useState<Tab>('map');
@@ -395,6 +395,27 @@ export default function CampaignPage() {
                 >
                   📥 Export Campaign (JSON)
                 </button>
+              </div>
+              <div className="pt-2 border-t border-dnd-accent/30">
+                <label className="block text-xs text-dnd-muted mb-2 uppercase tracking-wider">Session Stats</label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-dnd-bg rounded-lg p-2 text-center">
+                    <span className="block text-dnd-muted">Dice Rolls</span>
+                    <span className="font-bold text-dnd-accent">{diceHistory.length}</span>
+                  </div>
+                  <div className="bg-dnd-bg rounded-lg p-2 text-center">
+                    <span className="block text-dnd-muted">Messages</span>
+                    <span className="font-bold text-dnd-accent">{chatMessages.length}</span>
+                  </div>
+                  <div className="bg-dnd-bg rounded-lg p-2 text-center">
+                    <span className="block text-dnd-muted">Maps</span>
+                    <span className="font-bold text-dnd-accent">{maps.length}</span>
+                  </div>
+                  <div className="bg-dnd-bg rounded-lg p-2 text-center">
+                    <span className="block text-dnd-muted">Tokens</span>
+                    <span className="font-bold text-dnd-accent">{tokens.length}</span>
+                  </div>
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <button
