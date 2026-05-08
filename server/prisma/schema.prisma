@@ -154,6 +154,7 @@ model CombatTracker {
   isActive         Boolean  @default(true)
   round            Int      @default(1)
   currentTurnIndex Int      @default(0)
+  log              Json?    @default("[]")
   createdAt        DateTime @default(now())
 
   participants CombatParticipant[]

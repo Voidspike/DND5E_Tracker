@@ -15,6 +15,7 @@ export function useSocket(campaignId?: string) {
     addCombatParticipant,
     removeCombatParticipant,
     updateCombatParticipant,
+    addCombatLogEntry,
   } = useGameStore();
   const syncToken = useCampaignStore((s) => s.syncToken);
 
@@ -36,6 +37,7 @@ export function useSocket(campaignId?: string) {
     socket.on('combat:remove', (participantId: string) => removeCombatParticipant(participantId));
     socket.on('combat:initiative:update', (participant: any) => updateCombatParticipant(participant));
     socket.on('token:update', (token: any) => syncToken(token));
+    socket.on('combat:log', (entry: any) => addCombatLogEntry(entry));
 
     socket.emit('room:join', campaignId);
 
@@ -54,6 +56,7 @@ export function useSocket(campaignId?: string) {
       socket.off('combat:remove');
       socket.off('combat:initiative:update');
       socket.off('token:update');
+      socket.off('combat:log');
     };
   }, [token, campaignId]);
 

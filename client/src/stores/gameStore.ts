@@ -38,6 +38,7 @@ interface GameState {
   onlinePlayers: OnlinePlayer[];
   selectedTokenId: string | null;
   combatTracker: CombatTracker | null;
+  combatLog: CombatLogEntryItem[];
   diceHistory: DiceRollResult[];
   chatMessages: ChatMessageItem[];
   fogData: string | null;
@@ -48,23 +49,32 @@ interface GameState {
   addCombatParticipant: (participant: CombatParticipant) => void;
   removeCombatParticipant: (participantId: string) => void;
   updateCombatParticipant: (participant: CombatParticipant) => void;
+  addCombatLogEntry: (entry: CombatLogEntryItem) => void;
   addDiceRoll: (roll: DiceRollResult) => void;
   addChatMessage: (msg: ChatMessageItem) => void;
   setFogData: (data: string | null) => void;
   reset: () => void;
 }
 
+interface CombatLogEntryItem {
+  type: string;
+  message: string;
+  round: number;
+  timestamp: string;
+}
+
 export const useGameStore = create<GameState>((set) => ({
   onlinePlayers: [],
   selectedTokenId: null,
   combatTracker: null,
+  combatLog: [],
   diceHistory: [],
   chatMessages: [],
   fogData: null,
 
   setOnlinePlayers: (players) => set({ onlinePlayers: players }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
-  setCombatTracker: (tracker) => set({ combatTracker: tracker }),
+  setCombatTracker: (tracker) => set({ combatTracker: tracker, combatLog: tracker?.log || [] }),
   addCombatParticipant: (participant) =>
     set((s) => {
       if (!s.combatTracker) return s;
@@ -99,6 +109,7 @@ export const useGameStore = create<GameState>((set) => ({
         },
       };
     }),
+  addCombatLogEntry: (entry) => set((s) => ({ combatLog: [...s.combatLog, entry] })),
   addDiceRoll: (roll) => set((s) => ({ diceHistory: [roll, ...s.diceHistory].slice(0, 50) })),
   addChatMessage: (msg) => set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
   setFogData: (data) => set({ fogData: data }),
@@ -107,6 +118,7 @@ export const useGameStore = create<GameState>((set) => ({
       onlinePlayers: [],
       selectedTokenId: null,
       combatTracker: null,
+      combatLog: [],
       diceHistory: [],
       chatMessages: [],
       fogData: null,

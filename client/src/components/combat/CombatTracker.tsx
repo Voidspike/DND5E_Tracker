@@ -10,7 +10,7 @@ interface CombatTrackerProps {
 }
 
 export default function CombatTracker({ isDM, socket, campaignId, tokens }: CombatTrackerProps) {
-  const { combatTracker } = useGameStore();
+  const { combatTracker, combatLog } = useGameStore();
   const [selectedTokenId, setSelectedTokenId] = useState('');
   const [initiative, setInitiative] = useState('');
   const [label, setLabel] = useState('');
@@ -156,6 +156,23 @@ export default function CombatTracker({ isDM, socket, campaignId, tokens }: Comb
                   </div>
                 </div>
               ))}
+          </div>
+
+          {/* Combat Log */}
+          <div className="mt-4">
+            <h3 className="text-xs font-semibold text-dnd-muted mb-2">Combat Log</h3>
+            <div className="space-y-1 max-h-44 overflow-y-auto">
+              {combatLog.length === 0 ? (
+                <p className="text-center text-dnd-muted text-xs py-2">No events yet</p>
+              ) : (
+                combatLog.map((entry: any, i: number) => (
+                  <div key={i} className="text-xs flex items-start gap-2">
+                    <span className="text-dnd-muted shrink-0">R{entry.round}</span>
+                    <span className="text-dnd-text">{entry.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* DM Controls */}

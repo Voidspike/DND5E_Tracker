@@ -57,6 +57,20 @@ export function setupSocket(httpServer: HTTPServer): Server {
       }
     }
 
+    async function appendCombatLog(combatId: string, campaignId: string, type: string, message: string, round: number) {
+      try {
+        const combat = await prisma.combatTracker.findUnique({ where: { id: combatId }, select: { log: true } });
+        if (!combat) return;
+        const logs = (combat.log as any[]) || [];
+        const entry = { type, message, round, timestamp: new Date().toISOString() };
+        logs.push(entry);
+        await prisma.combatTracker.update({ where: { id: combatId }, data: { log: logs as any } });
+        io.to(`campaign:${campaignId}`).emit('combat:log', entry);
+      } catch (err) {
+        console.error('Combat log append error:', err);
+      }
+    }
+
     // ─── Room Management ───
     socket.on('room:join', (campaignId: string) => {
       socket.campaignId = campaignId;
@@ -171,13 +185,16 @@ export function setupSocket(httpServer: HTTPServer): Server {
       });
       io.to(`campaign:${campaignId}`).emit('combat:start', combat as any);
       emitSystemMessage(campaignId, 'Combat has started!');
+      appendCombatLog(combat.id, campaignId, 'start', 'Combat started', 1);
     });
 
     socket.on('combat:end', async (combatId: string) => {
       if (!socket.campaignId) return;
+      const combat = await prisma.combatTracker.findUnique({ where: { id: combatId } });
       await prisma.combatTracker.update({ where: { id: combatId }, data: { isActive: false } });
       io.to(`campaign:${socket.campaignId}`).emit('combat:end');
       emitSystemMessage(socket.campaignId!, 'Combat has ended.');
+      appendCombatLog(combatId, socket.campaignId!, 'end', 'Combat ended', combat?.round || 1);
     });
 
     socket.on('combat:next_turn', async (combatId: string) => {
@@ -215,7 +232,10 @@ export function setupSocket(httpServer: HTTPServer): Server {
           isActiveTurn: i === nextIndex,
         }));
       }
+      const currentParticipant = updated.participants[nextIndex];
+      const label = currentParticipant?.label || currentParticipant?.tokenId?.slice(0, 8) || 'Unknown';
       io.to(`campaign:${socket.campaignId}`).emit('combat:next_turn', updated as any);
+      appendCombatLog(combatId, socket.campaignId!, 'turn', `Round ${updated.round} — ${label}'s turn`, updated.round);
     });
 
     socket.on('combat:prev_turn', async (combatId: string) => {
@@ -247,7 +267,10 @@ export function setupSocket(httpServer: HTTPServer): Server {
           isActiveTurn: i === prevIndex,
         }));
       }
+      const cp = updated.participants[prevIndex];
+      const plabel = cp?.label || cp?.tokenId?.slice(0, 8) || 'Unknown';
       io.to(`campaign:${socket.campaignId}`).emit('combat:prev_turn', updated as any);
+      appendCombatLog(combatId, socket.campaignId!, 'turn', `Round ${updated.round} — ${plabel}'s turn`, updated.round);
     });
 
     socket.on('combat:add', async (data) => {
@@ -260,13 +283,20 @@ export function setupSocket(httpServer: HTTPServer): Server {
           label: data.label || null,
         },
       });
+      const combat = await prisma.combatTracker.findUnique({ where: { id: data.combatId }, select: { round: true } });
+      const pname = data.label || data.tokenId.slice(0, 8);
       io.to(`campaign:${socket.campaignId}`).emit('combat:add', participant as any);
+      appendCombatLog(data.combatId, socket.campaignId!, 'add', `${pname} joined combat (Init ${data.initiative})`, combat?.round || 1);
     });
 
     socket.on('combat:remove', async (data) => {
       if (!socket.campaignId) return;
+      const participant = await prisma.combatParticipant.findUnique({ where: { id: data.participantId } });
       await prisma.combatParticipant.delete({ where: { id: data.participantId } });
+      const combat = await prisma.combatTracker.findUnique({ where: { id: data.combatId }, select: { round: true } });
+      const rname = participant?.label || participant?.tokenId?.slice(0, 8) || 'Unknown';
       io.to(`campaign:${socket.campaignId}`).emit('combat:remove', data.participantId);
+      appendCombatLog(data.combatId, socket.campaignId!, 'remove', `${rname} removed from combat`, combat?.round || 1);
     });
 
     socket.on('combat:initiative:update', async (data) => {
@@ -275,7 +305,10 @@ export function setupSocket(httpServer: HTTPServer): Server {
         where: { id: data.participantId },
         data: { initiative: data.initiative },
       });
+      const combat = await prisma.combatTracker.findUnique({ where: { id: participant.combatId }, select: { round: true } });
+      const iname = participant.label || participant.tokenId.slice(0, 8);
       io.to(`campaign:${socket.campaignId}`).emit('combat:initiative:update', participant as any);
+      appendCombatLog(participant.combatId, socket.campaignId!, 'initiative', `${iname}'s initiative set to ${data.initiative}`, combat?.round || 1);
     });
 
     // ─── Dice ───

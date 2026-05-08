@@ -251,6 +251,13 @@ export interface CombatParticipant {
   isActiveTurn: boolean;
 }
 
+export interface CombatLogEntry {
+  type: 'start' | 'end' | 'turn' | 'add' | 'remove' | 'initiative';
+  message: string;
+  round: number;
+  timestamp: string;
+}
+
 export interface CombatTracker {
   id: string;
   campaignId: string;
@@ -259,6 +266,7 @@ export interface CombatTracker {
   round: number;
   currentTurnIndex: number;
   participants: CombatParticipant[];
+  log: CombatLogEntry[] | null;
   createdAt: string;
 }
 
