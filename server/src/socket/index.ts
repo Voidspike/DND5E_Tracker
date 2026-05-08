@@ -179,6 +179,15 @@ export function setupSocket(httpServer: HTTPServer): Server {
       socket.to(`campaign:${data.campaignId}`).emit('map:grid:update', data.grid);
     });
 
+    // ─── Map Annotations ───
+    socket.on('map:annotation:update', (data) => {
+      socket.to(`campaign:${data.campaignId}`).emit('map:annotation:update', data.data);
+    });
+
+    socket.on('map:annotation:clear', (data) => {
+      socket.to(`campaign:${data.campaignId}`).emit('map:annotation:clear');
+    });
+
     // ─── Combat Operations ───
     socket.on('combat:start', async (campaignId: string) => {
       if (!socket.campaignId) return;

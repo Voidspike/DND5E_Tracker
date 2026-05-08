@@ -24,6 +24,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const visionCanvasRef = useRef<HTMLCanvasElement>(null);
+  const annotateCanvasRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [panDragging, setPanDragging] = useState(false);
@@ -38,6 +39,8 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [mapW, setMapW] = useState(map.width || 30);
   const [mapH, setMapH] = useState(map.height || 20);
   const [fogMode, setFogMode] = useState<'none' | 'paint' | 'erase'>('none');
+  const [annotateMode, setAnnotateMode] = useState(false);
+  const [annotateColor, setAnnotateColor] = useState('#e94560');
   const [isPainting, setIsPainting] = useState(false);
   const [dragTokenId, setDragTokenId] = useState<string | null>(null);
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
@@ -90,6 +93,37 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     socket.on('map:fog:update', handler);
     return () => { socket.off('map:fog:update', handler); };
   }, [socket, setFogData]);
+
+  // Listen for annotation updates from other users
+  useEffect(() => {
+    const handler = (data: string) => {
+      const canvas = annotateCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      img.src = data;
+    };
+    socket.on('map:annotation:update', handler);
+    return () => { socket.off('map:annotation:update', handler); };
+  }, [socket]);
+
+  // Listen for annotation clear from other users
+  useEffect(() => {
+    const handler = () => {
+      const canvas = annotateCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+    socket.on('map:annotation:clear', handler);
+    return () => { socket.off('map:annotation:clear', handler); };
+  }, [socket]);
 
   // Draw vision range circle for selected token
   useEffect(() => {
@@ -173,6 +207,11 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (annotateMode) {
+      setIsPainting(true);
+      drawAnnotate(e);
+      return;
+    }
     if (fogMode !== 'none') {
       setIsPainting(true);
       paintFog(e);
@@ -185,6 +224,10 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (annotateMode && isPainting) {
+      drawAnnotate(e);
+      return;
+    }
     if (fogMode !== 'none' && isPainting) {
       paintFog(e);
       return;
@@ -208,6 +251,9 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     if (dragTokenId) {
       socket.emit('token:move', { tokenId: dragTokenId, x: dragTokenPos.x, y: dragTokenPos.y });
       setDragTokenId(null);
+    }
+    if (annotateMode) {
+      saveAnnotationData();
     }
     if (fogMode !== 'none') {
       saveFogData();
@@ -336,6 +382,42 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     socket.emit('map:fog:update', { mapId: map.id, campaignId: map.campaignId, fogData: dataUrl });
   };
 
+  const drawAnnotate = (e: React.MouseEvent) => {
+    const canvas = annotateCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const canvasX = (e.clientX - rect.left - offset.x) / scale;
+    const canvasY = (e.clientY - rect.top - offset.y) / scale;
+    ctx.strokeStyle = annotateColor;
+    ctx.lineWidth = 2 / scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineTo(canvasX, canvasY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(canvasX, canvasY);
+  };
+
+  const saveAnnotationData = () => {
+    const canvas = annotateCanvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL();
+    socket.emit('map:annotation:update', { mapId: map.id, campaignId: map.campaignId, data: dataUrl });
+  };
+
+  const clearAnnotations = () => {
+    const canvas = annotateCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    saveAnnotationData();
+    socket.emit('map:annotation:clear', { mapId: map.id, campaignId: map.campaignId });
+  };
+
   const clearAllFog = () => {
     const canvas = fogCanvasRef.current;
     if (!canvas) return;
@@ -427,7 +509,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onClick={handleMapClick}
-      style={{ cursor: fogMode !== 'none' ? 'crosshair' : panDragging ? 'grabbing' : createTokenType ? 'crosshair' : 'grab' }}
+      style={{ cursor: annotateMode ? 'crosshair' : fogMode !== 'none' ? 'crosshair' : panDragging ? 'grabbing' : createTokenType ? 'crosshair' : 'grab' }}
     >
       {/* Map Image */}
       {map.imageUrl && (
@@ -489,6 +571,20 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: '0 0',
           pointerEvents: 'none',
+          transition: isAnimating ? 'transform 150ms ease-out' : 'none',
+        }}
+      />
+
+      {/* Annotation Canvas */}
+      <canvas
+        ref={annotateCanvasRef}
+        className="absolute"
+        width={mapPixelWidth}
+        height={mapPixelHeight}
+        style={{
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+          transformOrigin: '0 0',
+          pointerEvents: annotateMode ? 'auto' : 'none',
           transition: isAnimating ? 'transform 150ms ease-out' : 'none',
         }}
       />
@@ -768,6 +864,37 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </button>
+            <div className="w-px h-5 bg-dnd-accent/40 mx-0.5" />
+            {/* Annotation tools */}
+            <button
+              onClick={() => { setAnnotateMode(!annotateMode); setFogMode('none'); setCreateTokenType(null); }}
+              className={`w-8 h-8 rounded text-xs font-bold flex items-center justify-center ${
+                annotateMode
+                  ? 'bg-dnd-primary text-white ring-2 ring-dnd-primary'
+                  : 'bg-dnd-surface border border-dnd-accent text-dnd-warning hover:bg-dnd-accent'
+              }`}
+              title="Draw Annotation"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            </button>
+            {annotateMode && (
+              <>
+                <input
+                  type="color"
+                  value={annotateColor}
+                  onChange={(e) => setAnnotateColor(e.target.value)}
+                  className="w-7 h-7 rounded cursor-pointer border-0 p-0"
+                  title="Annotation Color"
+                />
+                <button
+                  onClick={clearAnnotations}
+                  className="bg-dnd-surface border border-dnd-accent text-dnd-danger/70 w-8 h-8 rounded hover:bg-dnd-accent flex items-center justify-center text-xs"
+                  title="Clear Annotations"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </>
+            )}
             <button
               onClick={resetAllFog}
               className="bg-dnd-surface border border-dnd-accent text-white w-8 h-8 rounded hover:bg-dnd-accent flex items-center justify-center text-xs"
@@ -784,8 +911,16 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
         {map.name}
       </div>
 
+      {/* Annotation mode indicator */}
+      {annotateMode && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full z-20 flex items-center gap-2">
+          <span style={{ color: annotateColor }} className="font-semibold">✎ Drawing</span>
+          <button onClick={() => setAnnotateMode(false)} className="text-dnd-muted hover:text-white">✕</button>
+        </div>
+      )}
+
       {/* Fog mode indicator */}
-      {fogMode !== 'none' && (
+      {fogMode !== 'none' && !annotateMode && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full z-20">
           {fogMode === 'erase' ? 'Revealing Fog (drag to reveal)' : 'Painting Fog (drag to hide)'}
           <button onClick={() => setFogMode('none')} className="ml-2 text-dnd-muted hover:text-white">✕</button>
