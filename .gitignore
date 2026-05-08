@@ -5,3 +5,8 @@ dist/
 .DS_Store
 .cache/
 .claude/
+*.tsbuildinfo
+shared/types/index.js
+shared/types/index.d.ts
+server/uploads/
+package-lock.json

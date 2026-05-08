@@ -141,7 +141,7 @@
 ## 开发建议
 
 1. **接手后先读 CLAUDE.md**，包含架构、功能状态、Socket 事件映射、关键文件索引
-2. **剩余工作按价值排序**：移动端适配 > 地图标注工具 > 暗色主题优化 > 模板系统 > 右键菜单
+2. **剩余工作按价值排序**：测试/CI > DM相机同步 > 观察者模式 > 粒子动效 > 骰子动画
 3. **每个新功能遵循模式**：shared type → Prisma → API route → Socket event → Store → Component
 4. **测试和类型安全优先于新功能**
 5. **Schema 变更后用 `prisma db push`（非 `migrate dev`）**，后者在非 TTY 环境会挂起
