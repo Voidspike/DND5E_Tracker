@@ -28,6 +28,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [panDragging, setPanDragging] = useState(false);
   const [panDragStart, setPanDragStart] = useState({ x: 0, y: 0 });
+  const [isAnimating, setIsAnimating] = useState(false);
   const [showGridSettings, setShowGridSettings] = useState(false);
   const [gridSize, setGridSize] = useState(map.gridSize || 50);
   const [gridOffsetX, setGridOffsetX] = useState(map.gridOffsetX || 0);
@@ -130,9 +131,32 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale((s) => Math.min(3, Math.max(0.2, s * delta)));
-  }, []);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Touchpad pinch emits ctrlKey + wheel
+    const isPinch = e.ctrlKey;
+
+    const delta = e.deltaY > 0 ? 0.92 : 1.08;
+    const newScale = Math.min(3, Math.max(0.2, scale * delta));
+    const scaleChange = newScale / scale;
+
+    // Zoom towards cursor position
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    setOffset({
+      x: mouseX - scaleChange * (mouseX - offset.x),
+      y: mouseY - scaleChange * (mouseY - offset.y),
+    });
+    setScale(newScale);
+
+    if (!isPinch && !panDragging) {
+      setIsAnimating(true);
+      clearTimeout((window as any).__zoomAnimTimeout);
+      (window as any).__zoomAnimTimeout = setTimeout(() => setIsAnimating(false), 150);
+    }
+  }, [scale, offset.x, offset.y, panDragging]);
 
   const getGridCoords = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -316,6 +340,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             transformOrigin: '0 0',
             pointerEvents: 'none',
             objectFit: 'fill',
+            transition: isAnimating ? 'transform 150ms ease-out' : 'none',
           }}
         />
       )}
@@ -329,6 +354,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: '0 0',
           pointerEvents: 'none',
+          transition: isAnimating ? 'transform 150ms ease-out' : 'none',
         }}
       >
         <defs>
@@ -361,6 +387,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: '0 0',
           pointerEvents: 'none',
+          transition: isAnimating ? 'transform 150ms ease-out' : 'none',
         }}
       />
 
@@ -374,6 +401,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: '0 0',
           pointerEvents: fogMode !== 'none' ? 'auto' : 'none',
+          transition: isAnimating ? 'transform 150ms ease-out' : 'none',
         }}
       />
 
