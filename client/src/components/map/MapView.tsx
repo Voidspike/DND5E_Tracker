@@ -19,7 +19,7 @@ interface MapViewProps {
 }
 
 export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
-  const { createToken, updateToken, fetchTokens, updateMap, deleteMap } = useCampaignStore();
+  const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken } = useCampaignStore();
   const { fogData, setFogData } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,6 +43,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
   const [dragTokenPos, setDragTokenPos] = useState({ x: 0, y: 0 });
   const [createTokenType, setCreateTokenType] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ tokenId: string; x: number; y: number } | null>(null);
   const touchRef = useRef<{
     touches: Map<number, { startX: number; startY: number; startScale: number; startOffset: { x: number; y: number } }>;
     pinchDist: number;
@@ -355,6 +356,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   };
 
   const handleMapClick = async (e: React.MouseEvent) => {
+    setContextMenu(null);
     if (fogMode !== 'none' || dragTokenId || !isDM || !containerRef.current) return;
     if (!createTokenType) return;
     const coords = getGridCoords(e.clientX, e.clientY);
@@ -514,6 +516,12 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             top: (dragTokenId === token.id ? dragTokenPos.y : token.y) * gridPixels * scale + offset.y,
             transform: 'translate(-50%, -50%)',
             zIndex: dragTokenId === token.id ? 50 : 10,
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (isDM || token.ownerId === undefined) {
+              setContextMenu({ tokenId: token.id, x: e.clientX, y: e.clientY });
+            }
           }}>
             {/* Token Circle */}
             <div
@@ -580,6 +588,73 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             )}
           </div>
         ))}
+
+      {/* Context Menu */}
+      {contextMenu && (() => {
+        const ctxToken = tokens.find((t: any) => t.id === contextMenu.tokenId);
+        if (!ctxToken) return null;
+        return (
+          <div
+            className="fixed z-50 bg-dnd-surface border border-dnd-accent rounded-lg shadow-2xl py-1 min-w-36"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={() => setContextMenu(null)}
+          >
+            <button
+              onClick={() => {
+                socket.emit('token:select', ctxToken.id);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-dnd-primary/20 text-dnd-text"
+            >
+              View Details
+            </button>
+            {isDM && (
+              <>
+                <button
+                  onClick={() => {
+                    handleHPChange(ctxToken, -5);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-dnd-danger/10 text-dnd-danger/90"
+                >
+                  HP -5
+                </button>
+                <button
+                  onClick={() => {
+                    handleHPChange(ctxToken, 5);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-dnd-success/10 text-dnd-success"
+                >
+                  HP +5
+                </button>
+                <button
+                  onClick={() => {
+                    handleToggleHidden(ctxToken);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-dnd-accent/30 text-dnd-muted"
+                >
+                  {ctxToken.isHidden ? 'Show Token' : 'Hide Token'}
+                </button>
+                <div className="border-t border-dnd-accent/30 my-1" />
+                <button
+                  onClick={() => {
+                    if (confirm('Delete this token?')) {
+                      deleteToken(ctxToken.id);
+                      socket.emit('token:delete', ctxToken.id);
+                    }
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-dnd-danger/20 text-dnd-danger/80"
+                >
+                  Delete Token
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Token Creation Toolbar (DM only) */}
       {isDM && (
