@@ -21,7 +21,7 @@ export default function CampaignPage() {
   const { user } = useAuthStore();
   const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokensByCampaign, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
     useCampaignStore();
-  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages } = useGameStore();
+  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages, setSelectedTokenId } = useGameStore();
   const socket = useSocket(id);
 
   const [activeTab, setActiveTab] = useState<Tab>('map');
@@ -663,6 +663,18 @@ export default function CampaignPage() {
         {/* Token Sidebar */}
         {selectedTokenId && (
           <div className="w-72 bg-dnd-surface/80 border-l border-dnd-accent/50 overflow-y-auto shrink-0 hidden sm:block">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-dnd-accent/50">
+              <span className="text-sm font-semibold">Token Details</span>
+              <button
+                onClick={() => {
+                  setSelectedTokenId(null);
+                  socket.emit('token:select', null);
+                }}
+                className="text-dnd-muted text-sm hover:text-dnd-text"
+              >
+                ✕
+              </button>
+            </div>
             <TokenView
               token={tokens.find((t) => t.id === selectedTokenId)}
               isDM={isDM}
@@ -679,7 +691,10 @@ export default function CampaignPage() {
           <div className="flex items-center justify-between px-4 py-2 border-b border-dnd-accent/50">
             <span className="text-sm font-semibold">Token Details</span>
             <button
-              onClick={() => socket.emit('token:select', null)}
+              onClick={() => {
+                setSelectedTokenId(null);
+                socket.emit('token:select', null);
+              }}
               className="text-dnd-muted text-sm"
             >
               Close

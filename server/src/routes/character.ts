@@ -75,6 +75,7 @@ const updateSchema = z.object({
   languages: z.string().nullable().optional(),
   toolProficiencies: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
 });
 
 // JSON fields that need stringify

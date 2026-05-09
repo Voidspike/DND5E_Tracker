@@ -19,8 +19,8 @@ interface MapViewProps {
 }
 
 export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
-  const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken } = useCampaignStore();
-  const { fogData, setFogData } = useGameStore();
+  const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters } = useCampaignStore();
+  const { fogData, setFogData, setSelectedTokenId } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const visionCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -250,6 +250,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     setIsPainting(false);
     setPanDragging(false);
     if (dragTokenId) {
+      updateToken(dragTokenId, { x: dragTokenPos.x, y: dragTokenPos.y });
       socket.emit('token:move', { tokenId: dragTokenId, x: dragTokenPos.x, y: dragTokenPos.y });
       setDragTokenId(null);
     }
@@ -440,6 +441,8 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
   const handleMapClick = async (e: React.MouseEvent) => {
     setContextMenu(null);
+    setSelectedTokenId(null);
+    socket.emit('token:select', null);
     if (fogMode !== 'none' || dragTokenId || !isDM || !containerRef.current) return;
     if (!createTokenType) return;
     const coords = getGridCoords(e.clientX, e.clientY);
@@ -464,7 +467,9 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     if (e.button !== 0) return;
     const coords = getGridCoords(e.clientX, e.clientY);
     setDragTokenId(token.id);
+    setDragTokenPos({ x: token.x, y: token.y });
     setDragTokenOffset({ x: coords.x - token.x, y: coords.y - token.y });
+    setSelectedTokenId(token.id);
     socket.emit('token:select', token.id);
   };
 
@@ -620,37 +625,64 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
               setContextMenu({ tokenId: token.id, x: e.clientX, y: e.clientY });
             }
           }}>
-            {/* Token Circle */}
-            <div
-              className={`flex items-center justify-center rounded-full border-2 transition-all hover:ring-2 hover:ring-dnd-primary ${
-                dragTokenId === token.id ? 'opacity-80 scale-110' : ''
-              }`}
-              style={{
-                width: token.width * gridPixels * scale,
-                height: token.height * gridPixels * scale,
-                backgroundColor: token.color + '40',
-                borderColor: token.color,
-                cursor: isDM ? 'grab' : 'pointer',
-                minWidth: 24,
-                minHeight: 24,
-              }}
-              onMouseDown={(e) => {
-                if (!isDM) {
-                  e.stopPropagation();
-                  socket.emit('token:select', token.id);
-                  return;
-                }
-                handleTokenMouseDown(e, token);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isDM) socket.emit('token:select', token.id);
-              }}
-            >
-              <span className="text-xs font-bold text-white drop-shadow-lg select-none" style={{ fontSize: `${Math.max(10, 14 * scale)}px` }}>
-                {token.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
+            {/* Token Circle / Portrait */}
+            {(() => {
+              const linkedChar = token.characterId ? characters.find((c: any) => c.id === token.characterId) : null;
+              const portraitUrl = linkedChar?.imageUrl || token.imageUrl;
+              const size = Math.max(24, token.width * gridPixels * scale);
+              return portraitUrl ? (
+                <div
+                  className={`rounded-full border-2 transition-all hover:ring-2 hover:ring-dnd-primary overflow-hidden ${
+                    dragTokenId === token.id ? 'opacity-80 scale-110' : ''
+                  }`}
+                  style={{
+                    width: size,
+                    height: size,
+                    borderColor: token.color,
+                    cursor: isDM ? 'grab' : 'pointer',
+                    minWidth: 24,
+                    minHeight: 24,
+                  }}
+                  onMouseDown={(e) => {
+                    if (!isDM) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
+                    handleTokenMouseDown(e, token);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isDM) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
+                  }}
+                >
+                  <img src={portraitUrl} alt={token.name} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div
+                  className={`flex items-center justify-center rounded-full border-2 transition-all hover:ring-2 hover:ring-dnd-primary ${
+                    dragTokenId === token.id ? 'opacity-80 scale-110' : ''
+                  }`}
+                  style={{
+                    width: size,
+                    height: size,
+                    backgroundColor: token.color + '40',
+                    borderColor: token.color,
+                    cursor: isDM ? 'grab' : 'pointer',
+                    minWidth: 24,
+                    minHeight: 24,
+                  }}
+                  onMouseDown={(e) => {
+                    if (!isDM) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
+                    handleTokenMouseDown(e, token);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isDM) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
+                  }}
+                >
+                  <span className="text-xs font-bold text-white drop-shadow-lg select-none" style={{ fontSize: `${Math.max(10, 14 * scale)}px` }}>
+                    {token.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* HP Bar below token (DM only) */}
             {isDM && token.hpMax && (
@@ -698,6 +730,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           >
             <button
               onClick={() => {
+                setSelectedTokenId(ctxToken.id);
                 socket.emit('token:select', ctxToken.id);
                 setContextMenu(null);
               }}

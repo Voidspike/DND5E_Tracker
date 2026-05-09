@@ -41,15 +41,27 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
     socket.emit('token:move', { tokenId: token.id, x: newX, y: newY });
   };
 
+  const linkedChar = token.characterId ? characters.find((c: any) => c.id === token.characterId) : null;
+  const portraitUrl = linkedChar?.imageUrl || token.imageUrl;
+
   return (
     <div className="p-4">
       {/* Token Preview */}
-      <div
-        className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-xl font-bold"
-        style={{ backgroundColor: token.color + '60', border: `3px solid ${token.color}` }}
-      >
-        {token.name.charAt(0).toUpperCase()}
-      </div>
+      {portraitUrl ? (
+        <div
+          className="w-16 h-16 rounded-full mx-auto mb-3 overflow-hidden border-2"
+          style={{ borderColor: token.color }}
+        >
+          <img src={portraitUrl} alt={token.name} className="w-full h-full object-cover" />
+        </div>
+      ) : (
+        <div
+          className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-xl font-bold"
+          style={{ backgroundColor: token.color + '60', border: `3px solid ${token.color}` }}
+        >
+          {token.name.charAt(0).toUpperCase()}
+        </div>
+      )}
 
       <h3 className="text-center font-bold mb-1">{token.name}</h3>
       <p className="text-center text-xs text-dnd-muted mb-4 capitalize">{token.type}</p>

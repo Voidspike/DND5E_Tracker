@@ -221,6 +221,7 @@ export interface Character {
   languages: string | null;
   toolProficiencies: string | null;
   notes: string | null;
+  imageUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }

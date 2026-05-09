@@ -18,6 +18,7 @@ export function useSocket(campaignId?: string) {
     addCombatLogEntry,
   } = useGameStore();
   const syncToken = useCampaignStore((s) => s.syncToken);
+  const setSelectedTokenId = useGameStore((s) => s.setSelectedTokenId);
 
   useEffect(() => {
     if (!token || !campaignId) return;
@@ -37,6 +38,8 @@ export function useSocket(campaignId?: string) {
     socket.on('combat:remove', (participantId: string) => removeCombatParticipant(participantId));
     socket.on('combat:initiative:update', (participant: any) => updateCombatParticipant(participant));
     socket.on('token:update', (token: any) => syncToken(token));
+    socket.on('token:move', (data: any) => syncToken({ id: data.id, x: data.x, y: data.y }));
+    socket.on('token:select', (id: string | null) => setSelectedTokenId(id));
     socket.on('combat:log', (entry: any) => addCombatLogEntry(entry));
 
     socket.emit('room:join', campaignId);
@@ -56,6 +59,8 @@ export function useSocket(campaignId?: string) {
       socket.off('combat:remove');
       socket.off('combat:initiative:update');
       socket.off('token:update');
+      socket.off('token:move');
+      socket.off('token:select');
       socket.off('combat:log');
     };
   }, [token, campaignId]);

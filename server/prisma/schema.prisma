@@ -143,6 +143,7 @@ model Character {
   languages         String?
   toolProficiencies String?
   notes             String?
+  imageUrl          String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
