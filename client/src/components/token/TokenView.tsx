@@ -20,9 +20,6 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
 
   if (!token) return null;
 
-  // Debug: log token prop on render
-  console.log('[TokenView] render: token.id=%s token.characterId=%s', token.id, token.characterId || 'none');
-
   const canEdit = isDM || token.ownerId === userId;
 
   const handleSave = async () => {
@@ -116,13 +113,11 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
               disabled={linking}
               onChange={async (e) => {
                 const charId = e.target.value || null;
-                console.log('[TokenView] onChange fired. token.id=%s charId=%s', token.id, charId || 'none');
                 setLinking(true);
                 try {
                   if (charId) {
                     const char = characters.find((c: any) => c.id === charId);
                     if (!char) { console.error('[TokenView] Character not found:', charId); return; }
-                    // Sync character properties to token
                     const updates: Record<string, unknown> = {
                       characterId: charId,
                       name: char.name,
@@ -133,19 +128,15 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
                       speed: char.speed,
                       imageUrl: token.imageUrl || char.imageUrl,
                     };
-                    // Remove undefined values
                     Object.keys(updates).forEach(k => {
                       if (updates[k] === undefined || updates[k] === null) delete updates[k];
                     });
-                    console.log('[TokenView] Syncing token with character data:', updates);
                     await updateToken(token.id, updates);
                     socket.emit('token:update', { tokenId: token.id, updates });
                   } else {
-                    // Unlink: only clear characterId, keep token properties
                     await updateToken(token.id, { characterId: null });
                     socket.emit('token:update', { tokenId: token.id, updates: { characterId: null } });
                   }
-                  console.log('[TokenView] Link updated successfully');
                 } catch (err) {
                   console.error('[TokenView] Failed to link character:', err);
                 } finally {
