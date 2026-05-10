@@ -11,7 +11,7 @@ const createSchema = z.object({
   name: z.string().min(1).max(100),
   x: z.number().default(0),
   y: z.number().default(0),
-  ownerId: z.string().uuid().optional(),
+  ownerId: z.string().optional(),
   imageUrl: z.string().optional(),
   color: z.string().default('#ffffff'),
   hpCurrent: z.number().int().optional(),
@@ -19,7 +19,7 @@ const createSchema = z.object({
   ac: z.number().int().optional(),
   darkvision: z.number().int().optional(),
   speed: z.number().int().optional(),
-  characterId: z.string().uuid().nullable().optional(),
+  characterId: z.string().nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -29,7 +29,7 @@ const updateSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   type: z.enum(['character', 'npc', 'monster', 'object']).optional(),
-  ownerId: z.string().uuid().nullable().optional(),
+  ownerId: z.string().nullable().optional(),
   imageUrl: z.string().nullable().optional(),
   color: z.string().optional(),
   hpCurrent: z.number().int().nullable().optional(),
@@ -39,7 +39,7 @@ const updateSchema = z.object({
   speed: z.number().int().nullable().optional(),
   isHidden: z.boolean().optional(),
   statusEffects: z.array(z.string()).optional(),
-  characterId: z.string().uuid().nullable().optional(),
+  characterId: z.string().nullable().optional(),
 });
 
 // Get tokens for a campaign

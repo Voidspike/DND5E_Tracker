@@ -117,7 +117,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
                 try {
                   if (charId) {
                     const char = characters.find((c: any) => c.id === charId);
-                    if (!char) { console.error('[TokenView] Character not found:', charId); return; }
+                    if (!char) return;
                     const updates: Record<string, unknown> = {
                       characterId: charId,
                       name: char.name,

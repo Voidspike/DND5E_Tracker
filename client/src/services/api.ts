@@ -34,7 +34,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+    const detail = err.details ? ': ' + JSON.stringify(err.details) : '';
+    throw new Error((err.error || 'Request failed') + detail);
   }
 
   if (res.status === 204) return undefined as T;
