@@ -19,7 +19,7 @@ interface MapViewProps {
 }
 
 export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
-  const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters } = useCampaignStore();
+  const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters, updateCharacter } = useCampaignStore();
   const { fogData, setFogData, setSelectedTokenId } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -474,13 +474,17 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   };
 
   const handleHPChange = async (token: any, delta: number) => {
-    const newHp = (token.hpCurrent || 0) + delta;
-    await updateToken(token.id, { hpCurrent: Math.max(0, newHp) });
+    const newHp = Math.max(0, (token.hpCurrent || 0) + delta);
+    await updateToken(token.id, { hpCurrent: newHp });
     socket.emit('token:update', {
       campaignId: map.campaignId,
       tokenId: token.id,
-      updates: { hpCurrent: Math.max(0, newHp) },
+      updates: { hpCurrent: newHp },
     });
+    // Sync HP to linked character
+    if (token.characterId) {
+      updateCharacter(token.characterId, { hpCurrent: newHp } as any).catch(console.error);
+    }
   };
 
   const handleToggleHidden = async (token: any) => {

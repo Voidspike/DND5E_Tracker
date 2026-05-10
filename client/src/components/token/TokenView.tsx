@@ -10,7 +10,7 @@ interface TokenViewProps {
 }
 
 export default function TokenView({ token, isDM, userId, socket }: TokenViewProps) {
-  const { updateToken, deleteToken, characters } = useCampaignStore();
+  const { updateToken, deleteToken, characters, updateCharacter } = useCampaignStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(token?.name || '');
   const [hp, setHp] = useState(token?.hpCurrent?.toString() || '');
@@ -31,6 +31,13 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
     if (Object.keys(updates).length > 0) {
       await updateToken(token.id, updates);
       socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
+      // Sync HP to linked character
+      if (token.characterId && (updates.hpCurrent !== undefined || updates.hpMax !== undefined)) {
+        const charUpdates: any = {};
+        if (updates.hpCurrent !== undefined) charUpdates.hpCurrent = updates.hpCurrent;
+        if (updates.hpMax !== undefined) charUpdates.hpMax = updates.hpMax;
+        updateCharacter(token.characterId, charUpdates).catch(console.error);
+      }
     }
     setEditing(false);
   };

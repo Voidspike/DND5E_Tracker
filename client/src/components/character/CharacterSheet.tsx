@@ -116,7 +116,7 @@ type CharTab = 'info' | 'stats' | 'combat' | 'skills' | 'spells' | 'equip';
 
 export default function CharacterSheet({ character, onClose, socket, campaignId }: CharacterSheetProps) {
   const { user } = useAuthStore();
-  const { updateCharacter } = useCampaignStore();
+  const { updateCharacter, updateToken, tokens: allTokens } = useCampaignStore();
   const [tab, setTab] = useState<CharTab>('info');
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -146,6 +146,19 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
 
   const update = async (data: Partial<Character>) => {
     await updateCharacter(character.id, data as any);
+    // Sync HP changes to linked tokens
+    if (data.hpCurrent !== undefined || data.hpMax !== undefined) {
+      const linkedTokens = (allTokens || []).filter((t: any) => t.characterId === character.id);
+      for (const t of linkedTokens) {
+        const tokenUpdates: any = {};
+        if (data.hpCurrent !== undefined) tokenUpdates.hpCurrent = data.hpCurrent;
+        if (data.hpMax !== undefined) tokenUpdates.hpMax = data.hpMax;
+        updateToken(t.id, tokenUpdates).catch(console.error);
+        if (socket && campaignId) {
+          socket.emit('token:update', { tokenId: t.id, updates: tokenUpdates });
+        }
+      }
+    }
   };
 
   const toggleSaveProf = (stat: string) => {
