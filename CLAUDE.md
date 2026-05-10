@@ -58,8 +58,13 @@ shared/types/index.ts  →  Prisma schema  →  API route  →  Socket event  �
 - **The Vite dev server proxies** `/api`, `/uploads`, and `/socket.io` to `http://localhost:3001`.
 - **Tailwind uses custom DND-themed colors**: `dnd-bg`, `dnd-surface`, `dnd-primary`, `dnd-accent`, `dnd-muted`, `dnd-text`, `dnd-success`, `dnd-danger`.
 - **Server tsconfig** uses `rootDir: ".."` to allow importing `@dnd/shared` from outside `src/`.
+- **Text inputs use local-state + blur sync** (`EditField` / `BlurInput` components in `CharacterSheet.tsx`) to avoid IME composition bugs. Never use raw `onCompositionStart`/`onCompositionEnd` — they break input entirely in some browser/IME configurations.
+- **Zod schemas for IDs** should NOT use `.uuid()` — seed data uses human-readable IDs (e.g. `"seed-character-2"`) that fail UUID validation. Use `z.string()` instead.
+- **Seed character IDs are non-UUID strings** (e.g. `"seed-character-1"`, `"seed-character-2"`). Any schema validation must accept these.
+- **When user says "推送更新" (push updates)**, also check and update relevant `.md` files (CLAUDE.md, DESIGN.md, etc.) to reflect new features, changed conventions, or updated status.
+- **When user says "重启项目" (restart project)**, kill all node processes first (`taskkill //F //IM node.exe`), restart Docker containers, then `npm run dev`.
 
-## Feature Status (as of 2026-05-08)
+## Feature Status (as of 2026-05-11)
 
 ### Fully Working
 - User auth (register/login/me) with JWT
@@ -76,14 +81,14 @@ shared/types/index.ts  →  Prisma schema  →  API route  →  Socket event  �
 - **Full DND 5E Character Sheet** with 6 tabs:
   1. **Info** — name, class/level, race/subrace, gender, age, height, weight, alignment, faith, XP, proficiency, languages, tool proficiencies
   2. **Stats** — 6 ability scores + modifiers + saving throw proficiencies (toggle) + saves + passive perception
-  3. **Combat** — HP bar (current/max/temp), AC, initiative, speed, darkvision, hit dice, spell DC, resistances, immunities
+  3. **Combat** — HP bar (current/max/temp), AC, initiative, speed, darkvision, hit dice, resistances, immunities
   4. **Skills** — 18 skills with proficiency toggle + total modifier (ability mod + proficiency bonus if proficient)
-  5. **Spells** — spellcasting ability/DC/attack bonus, spell slots (visual dot click to mark used), prepared spells list
-  6. **Equip** — weapons (with attack/damage/properties), currency (CP/SP/EP/GP/PP), equipment items
-- Character editor with inline editing for all fields (owner-only)
+  5. **Spells** — **spellcasting auto-computed from class** (class→ability mapping, DC/atk auto-calc), spell slots (visual dot click to mark used), **spell search filtered by class**, learned vs prepared spell management (prep limit = spell mod + level for prepared casters), cantrips always prepared
+  6. **Equip** — weapons (add/edit/remove with name/atk/dmg/type/properties), armor (AC/type/stealth/strReq), currency (CP/SP/EP/GP/PP), **equipment items with optional attached spells + charges**
+- Character editor with inline editing for all fields (owner-only), **IME-safe inputs** (local-state + blur sync)
 - **Quick dice roll**: d20 buttons on stats/saves/skills for instant rolls
 - **Token status effects**: add/remove UI with real-time sync
-- **Character-Token link**: associate map tokens with character sheets via dropdown
+- **Character-Token link**: associate map tokens with character sheets via dropdown; **auto-syncs name, HP, AC, portrait, darkvision, speed on link**; **two-way HP sync** (token HP ↔ character sheet HP)
 - **Map zoom/pan**: zoom towards cursor, smooth CSS transitions, touchpad pinch
 - **Mobile responsive**: touch drag/pan/pinch, icon-only tabs on small screens
 - **Right-click context menu** on tokens (HP +/-5, hide/show, delete)

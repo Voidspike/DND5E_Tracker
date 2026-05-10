@@ -244,51 +244,84 @@ model Map {
 ### 6.5 Token（棋子）
 ```prisma
 model Token {
-  id         String   @id @default(uuid())
-  mapId      String
-  map        Map      @relation(fields: [mapId], references: [id])
-  campaignId String
-  type       String   @default("character") // "character" | "npc" | "monster" | "object"
-  name       String
-  x          Float    @default(0)
-  y          Float    @default(0)
-  width      Int      @default(1)  // grid cells
-  height     Int      @default(1)
-  ownerId    String?  // 玩家ID (null = DM controlled)
-  imageUrl   String?
-  color      String   @default("#ffffff")
-  hpCurrent  Int?
-  hpMax      Int?
-  ac         Int?
-  isHidden   Boolean  @default(false) // 对玩家隐藏
-  statusEffects Json? @default("[]")
-  createdAt  DateTime @default(now())
+  id            String   @id @default(uuid())
+  mapId         String
+  map           Map      @relation(fields: [mapId], references: [id])
+  campaignId    String
+  type          String   @default("character") // "character" | "npc" | "monster" | "object"
+  name          String
+  x             Float    @default(0)
+  y             Float    @default(0)
+  width         Int      @default(1)  // grid cells
+  height        Int      @default(1)
+  ownerId       String?  // 玩家ID (null = DM controlled)
+  imageUrl      String?
+  color         String   @default("#ffffff")
+  hpCurrent     Int?
+  hpMax         Int?
+  ac            Int?
+  darkvision    Int?
+  speed         Int?
+  isHidden      Boolean  @default(false) // 对玩家隐藏
+  statusEffects Json?    @default("[]")
+  characterId   String?  // 关联角色卡 ID
+  createdAt     DateTime @default(now())
 }
 ```
 
 ### 6.6 Character（角色卡）
 ```prisma
 model Character {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  name       String
-  class      String
-  level      Int      @default(1)
-  race       String
-  hpCurrent  Int
-  hpMax      Int
-  tempHp     Int      @default(0)
-  ac         Int
-  stats      Json     // {str, dex, con, int, wis, cha}
-  skills     Json?    // 技能熟练
-  spells     Json?    // 法术位/法术列表
-  inventory  Json?    // 物品
-  notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  campaignId        String
+  campaign          Campaign @relation(fields: [campaignId], references: [id])
+  name              String
+  class             String
+  level             Int      @default(1)
+  race              String
+  subrace           String?
+  gender            String?
+  age               Int?
+  height            String?
+  weight            String?
+  alignment         String?
+  faith             String?
+  xp                Int      @default(0)
+  proficiency       Int      @default(2)
+  hpCurrent         Int
+  hpMax             Int
+  tempHp            Int      @default(0)
+  ac                Int
+  initiative        Int      @default(0)
+  speed             Int      @default(30)
+  darkvision        Int      @default(0)
+  passivePerception Int      @default(10)
+  spellcastingClass    String?
+  spellcastingAbility  String?
+  spellSaveDc       Int?
+  spellAttackBonus  Int?
+  hitDice           String?
+  stats             Json     // {str, dex, con, int, wis, cha}
+  statSaveProficiencies Json?
+  skills            Json?
+  skillProficiencies    Json?
+  spells            Json?    // { _prepared: [...], Cantrip: [...], Lv1: [...], ... }
+  spellSlots        Json?    // { "1": { max: 4, used: 0 }, ... }
+  weapons           Json?
+  armor             Json?
+  currency          Json?
+  equipment         Json?    // [{ name, qty, spell?, charges? }, ...]
+  inventory         Json?    // legacy
+  resistances       String?
+  immunities        String?
+  languages         String?
+  toolProficiencies String?
+  notes             String?
+  imageUrl          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 ```
 
