@@ -161,11 +161,14 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   },
 
   updateToken: async (id, data) => {
+    console.log('[Store] updateToken called: id=%s data=%o', id, data);
     const token = await tokenApi.update(id, data);
+    console.log('[Store] updateToken API response: token.characterId=%s', token.characterId || 'none');
     set((s) => ({ tokens: s.tokens.map((t) => (t.id === id ? token : t)) }));
   },
 
   syncToken: (token) => {
+    console.log('[Store] syncToken called: token.id=%s token.characterId=%s', token.id, token.characterId || 'none');
     set((s) => ({ tokens: s.tokens.map((t) => (t.id === token.id ? { ...t, ...token } : t)) }));
   },
 

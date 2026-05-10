@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 import { useAuthStore } from '../../stores/authStore';
 import { useCampaignStore } from '../../stores/campaignStore';
@@ -27,6 +27,15 @@ interface CharacterSheetProps {
 const STAT_NAMES = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const;
 const STAT_LABELS: Record<string, string> = { str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA' };
 const STAT_FULL: Record<string, string> = { str: '力量', dex: '敏捷', con: '体质', int: '智力', wis: '感知', cha: '魅力' };
+
+// Class → spellcasting ability mapping (D&D 5E)
+const CLASS_SPELLCASTING_ABILITY: Record<string, string | null> = {
+  'Barbarian': null, 'Bard': '魅力', 'Cleric': '感知', 'Druid': '感知',
+  'Fighter': null, 'Monk': null, 'Paladin': '魅力', 'Ranger': '感知',
+  'Rogue': null, 'Sorcerer': '魅力', 'Warlock': '魅力', 'Wizard': '智力',
+};
+const PREPARED_CASTER_CLASSES = new Set(['Cleric', 'Druid', 'Paladin', 'Wizard']);
+const PREPARED_KEY = '_prepared';
 
 const CLASS_OPTIONS = [
   { value: 'Barbarian', label: '野蛮人', subclasses: ['狂战士', '图腾武者', '狂热者', '先祖守卫', '风暴先驱', '战狂'] },
@@ -118,8 +127,6 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
   const profBonus = character.proficiency || 2;
   const saveProfs = safeArray<string>(character.statSaveProficiencies);
   const skillProfs = safeArray<string>(character.skillProficiencies);
-  const spellSlots = safeObj<Record<string, { max: number; used: number }>>(character.spellSlots, {});
-  const spells = safeObj<Record<string, string[]>>(character.spells, {});
   const spellcastingMod = character.spellcastingAbility
     ? getModifier(stats[character.spellcastingAbility.toLowerCase() as keyof CharacterStats] || 0)
     : 0;
@@ -154,21 +161,6 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
       ? skillProfs.filter(p => p.toLowerCase() !== key)
       : [...skillProfs, skillName];
     update({ skillProficiencies: list.length > 0 ? list : null } as any);
-  };
-
-  const useSpellSlot = async (level: string) => {
-    const slot = spellSlots[level];
-    if (!slot) return;
-    const updated = { ...spellSlots, [level]: { ...slot, used: Math.min(slot.max, slot.used + 1) } };
-    await update({ spellSlots: updated } as any);
-  };
-
-  const resetSpellSlots = async () => {
-    const reset: Record<string, { max: number; used: number }> = {};
-    for (const [lvl, s] of Object.entries(spellSlots)) {
-      reset[lvl] = { ...s, used: 0 };
-    }
-    await update({ spellSlots: reset } as any);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -604,99 +596,22 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
             character={character}
             isOwner={isOwner}
             editing={editing}
-            spells={spells}
-            spellSlots={spellSlots}
-            computedSpellDc={computedSpellDc}
-            computedSpellAtk={computedSpellAtk}
+            stats={stats}
+            profBonus={profBonus}
+            spellsRaw={character.spells}
+            spellSlotsRaw={character.spellSlots}
             update={update}
-            resetSpellSlots={resetSpellSlots}
-            useSpellSlot={useSpellSlot}
           />
         )}
 
         {/* ─── Equip Tab ─── */}
         {tab === 'equip' && (
-          <div className="space-y-3">
-            {/* Weapons */}
-            {character.weapons && (character.weapons as any).length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-dnd-muted">武器</h3>
-                {(character.weapons as any[]).map((w: any, i: number) => (
-                  <div key={i} className="bg-dnd-bg rounded-lg p-3">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-sm">{w.name}</span>
-                      <span className="text-xs text-dnd-accent">{w.atk}</span>
-                    </div>
-                    <div className="flex gap-3 text-xs text-dnd-muted mt-1">
-                      <span>伤害: {w.dmg}</span>
-                      <span>{w.type}</span>
-                    </div>
-                    {w.properties && (
-                      <p className="text-[10px] text-dnd-muted mt-1">{w.properties}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Armor */}
-            {character.armor && Object.keys(character.armor as any).length > 0 && (
-              <div className="bg-dnd-bg rounded-lg p-3">
-                <h3 className="text-xs font-semibold text-dnd-muted mb-2">护甲</h3>
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  {Object.entries(character.armor as any).filter(([k]) => k !== 'name').map(([key, val]) => (
-                    <div key={key}>
-                      <span className="text-xs text-dnd-muted block capitalize">{key}</span>
-                      <span className="font-medium">{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* Currency */}
-            {character.currency && (
-              <div className="bg-dnd-bg rounded-lg p-3">
-                <h3 className="text-xs font-semibold text-dnd-muted mb-2">货币</h3>
-                <div className="grid grid-cols-5 gap-1 text-center text-sm">
-                  {(['cp', 'sp', 'ep', 'gp', 'pp'] as const).map(c => {
-                    const labels: Record<string, string> = { cp: '铜币', sp: '银币', ep: '金银币', gp: '金币', pp: '白金币' };
-                    return (
-                      <div key={c}>
-                        <span className="text-[10px] text-dnd-muted uppercase block">{c}</span>
-                        <span className="font-medium">{(character.currency as any)[c] || 0}</span>
-                        <span className="text-[10px] text-dnd-muted block">{labels[c]}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {/* Equipment */}
-            {character.equipment && (character.equipment as any).length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-dnd-muted">装备物品</h3>
-                {(character.equipment as any[]).map((e: any, i: number) => (
-                  <div key={i} className="bg-dnd-bg rounded-lg p-3 flex justify-between text-sm">
-                    <span>{e.name || e}</span>
-                    {e.qty && <span className="text-dnd-muted">x{e.qty}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Inventory (legacy) */}
-            {character.inventory && !character.equipment && Object.keys(character.inventory as any).length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-dnd-muted">背包</h3>
-                {Object.entries(character.inventory as Record<string, any>).map(([item, info]) => (
-                  <div key={item} className="bg-dnd-bg rounded-lg p-3 flex justify-between text-sm">
-                    <span className="capitalize">{item}</span>
-                    <span className="text-dnd-muted text-xs">
-                      {typeof info === 'object' ? `x${info.qty || 1}` : String(info)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <EquipPanel
+            character={character}
+            isOwner={isOwner}
+            editing={editing}
+            update={update}
+          />
         )}
       </div>
     </div>
@@ -743,101 +658,230 @@ function HpBar({ label, current, max, temp }: { label: string; current: number; 
 }
 
 function EditField({ label, value, type = 'text', onChange }: { label: string; value: string; type?: string; onChange: (v: string) => void }) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => { setLocal(value); }, [value]);
   return (
     <div>
       <label className="block text-xs text-dnd-muted mb-1">{label}</label>
       <input
         type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
+        value={local}
+        onChange={e => setLocal(e.target.value)}
+        onBlur={() => { if (local !== value) onChange(local); }}
         className="w-full bg-dnd-surface border border-dnd-accent rounded px-2 py-1 text-sm"
       />
     </div>
   );
 }
 
+// Local-state input that syncs on blur — avoids IME composition issues
+function BlurInput({ value, onChange, placeholder, className, autoFocus }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+  autoFocus?: boolean;
+}) {
+  const [local, setLocal] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setLocal(value); }, [value]);
+  useEffect(() => { if (autoFocus) inputRef.current?.focus(); }, [autoFocus]);
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={local}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={() => { if (local !== value) onChange(local); }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 // ─── Spells Panel ───
-function SpellsPanel({ character, isOwner, editing, spells, spellSlots, computedSpellDc, computedSpellAtk, update, resetSpellSlots, useSpellSlot }: {
+const SPELL_LEVEL_ORDER = ['Cantrip', 'Lv1', 'Lv2', 'Lv3', 'Lv4', 'Lv5', 'Lv6', 'Lv7', 'Lv8', 'Lv9'];
+
+function getSpellcastingInfo(classValue: string): { ability: string | null; statKey: string | null } {
+  const ability = CLASS_SPELLCASTING_ABILITY[classValue] ?? null;
+  const statKey = ability ? (STAT_FULL as Record<string, string>)[Object.keys(STAT_FULL).find(k => (STAT_FULL as Record<string, string>)[k] === ability) || ''] || null : null;
+  return { ability, statKey };
+}
+
+// Parse spells: supports old format { "Cantrip": [...], "Lv1": [...] } and new format with _prepared key
+function parseSpells(raw: unknown): { learned: Record<string, string[]>; prepared: string[] } {
+  const obj = safeObj<Record<string, unknown>>(raw, {});
+  const prepared = Array.isArray(obj[PREPARED_KEY]) ? (obj[PREPARED_KEY] as unknown as string[]) : [];
+  const learned: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === PREPARED_KEY) continue;
+    learned[k] = safeArray<string>(v);
+  }
+  // backward compat: if no _prepared key, all learned spells are considered prepared
+  const hasPreparedKey = PREPARED_KEY in obj;
+  const effectivePrepared = hasPreparedKey ? prepared : Object.values(learned).flat();
+  return { learned, prepared: effectivePrepared };
+}
+
+function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw, spellSlotsRaw, update }: {
   character: Character;
   isOwner: boolean;
   editing: boolean;
-  spells: Record<string, string[]>;
-  spellSlots: Record<string, { max: number; used: number }>;
-  computedSpellDc: number;
-  computedSpellAtk: number;
+  stats: CharacterStats;
+  profBonus: number;
+  spellsRaw: unknown;
+  spellSlotsRaw: unknown;
   update: (data: Partial<Character>) => Promise<void>;
-  resetSpellSlots: () => Promise<void>;
-  useSpellSlot: (level: string) => Promise<void>;
 }) {
   const [spellFilter, setSpellFilter] = useState('');
   const [spellLevelFilter, setSpellLevelFilter] = useState<number | -1>(-1);
   const [showResults, setShowResults] = useState(false);
 
+  // Spellcasting info auto-derived from class
+  const currentClass = CLASS_OPTIONS.find(c => c.value === character.class);
+  const classCnName = currentClass?.label || character.class;
+  const spellInfo = getSpellcastingInfo(character.class);
+  const spellAbility = spellInfo.ability;
+  const spellStatKey = spellInfo.statKey as keyof CharacterStats | null;
+  const spellAbilityMod = spellStatKey ? getModifier(stats[spellStatKey] || 0) : 0;
+  const effectiveSpellDc = 8 + profBonus + spellAbilityMod;
+  const effectiveSpellAtk = profBonus + spellAbilityMod;
+
+  const { learned, prepared: preparedSpells } = parseSpells(spellsRaw);
+  const spellSlots = safeObj<Record<string, { max: number; used: number }>>(spellSlotsRaw, {});
+
+  const isPreparedCaster = PREPARED_CASTER_CLASSES.has(character.class);
+  const hasSpellcasting = spellAbility !== null;
+
+  // Prepared caster limit: spellcasting mod + level (min 1). Cantrips don't count.
+  const maxPrepared = Math.max(1, spellAbilityMod + character.level);
+  const preparedCount = preparedSpells.filter(name => {
+    const s = SPELLS.find(x => x.cn === name);
+    return s && s.level > 0;
+  }).length;
+
+  const hasSpellsOrSlots = Object.keys(learned).length > 0 || Object.keys(spellSlots).length > 0;
+
+  // Sync spellcasting server fields when entering edit mode
+  const syncAndUpdate = async (data: Partial<Character>) => {
+    const toSend = {
+      ...data,
+      spellcastingClass: character.class,
+      spellcastingAbility: spellAbility,
+      spellSaveDc: effectiveSpellDc,
+      spellAttackBonus: effectiveSpellAtk,
+    };
+    await update(toSend as any);
+  };
+
+  // Filtered spell list for search
   const filteredSpells = useMemo(() => {
     let list = SPELLS;
+    // Only show spells from the character's class
+    if (classCnName) {
+      list = list.filter(s => {
+        const spellClasses = s.classes.split(/\s+/).filter(Boolean);
+        return spellClasses.includes(classCnName);
+      });
+    }
     if (spellFilter.trim()) {
       const q = spellFilter.toLowerCase();
       list = list.filter(s => s.cn.includes(q) || s.en.toLowerCase().includes(q));
     }
     if (spellLevelFilter >= 0) {
-      const lvlName = spellLevelFilter === 0 ? '戏法' : `${spellLevelFilter}环`;
       list = list.filter(s => s.level === spellLevelFilter);
     }
     return list.slice(0, 50);
-  }, [spellFilter, spellLevelFilter]);
+  }, [spellFilter, spellLevelFilter, classCnName]);
 
-  const addSpell = async (spellCn: string, levelName: string) => {
-    const updated = { ...spells };
-    if (!updated[levelName]) updated[levelName] = [];
-    if (!updated[levelName].includes(spellCn)) {
-      updated[levelName] = [...updated[levelName], spellCn];
-      await update({ spells: updated as any } as any);
+  const addSpell = async (spellCn: string, spellLevel: number) => {
+    const levelName = spellLevel === 0 ? 'Cantrip' : `Lv${spellLevel}`;
+    const newLearned = { ...learned };
+    if (!newLearned[levelName]) newLearned[levelName] = [];
+    if (!newLearned[levelName].includes(spellCn)) {
+      newLearned[levelName] = [...newLearned[levelName], spellCn];
     }
+    // For prepared casters: new spell is NOT auto-prepared (except cantrips)
+    // For known casters: new spell IS auto-prepared
+    let newPrepared = [...preparedSpells];
+    if (!isPreparedCaster || spellLevel === 0) {
+      if (!newPrepared.includes(spellCn)) newPrepared.push(spellCn);
+    }
+    const spellsData = { ...newLearned, [PREPARED_KEY]: newPrepared };
+    await syncAndUpdate({ spells: spellsData } as any);
     setSpellFilter('');
     setShowResults(false);
   };
 
   const removeSpell = async (levelName: string, spellName: string) => {
-    const updated = { ...spells };
-    updated[levelName] = updated[levelName].filter(s => s !== spellName);
-    if (updated[levelName].length === 0) delete updated[levelName];
-    await update({ spells: updated as any } as any);
+    const newLearned = { ...learned };
+    newLearned[levelName] = newLearned[levelName].filter(s => s !== spellName);
+    if (newLearned[levelName].length === 0) delete newLearned[levelName];
+    const newPrepared = preparedSpells.filter(s => s !== spellName);
+    const spellsData = { ...newLearned, [PREPARED_KEY]: newPrepared };
+    await syncAndUpdate({ spells: spellsData } as any);
+  };
+
+  const togglePrepared = async (spellName: string) => {
+    if (!isPreparedCaster) return;
+    const isCurrentlyPrepared = preparedSpells.includes(spellName);
+    const spell = SPELLS.find(s => s.cn === spellName);
+    const isCantrip = spell && spell.level === 0;
+    // Cantrips are always prepared — can't toggle off
+    if (isCantrip && isCurrentlyPrepared) return;
+
+    let newPrepared: string[];
+    if (isCurrentlyPrepared) {
+      newPrepared = preparedSpells.filter(s => s !== spellName);
+    } else {
+      if (preparedCount >= maxPrepared) return; // at limit
+      newPrepared = [...preparedSpells, spellName];
+    }
+    const spellsData = { ...learned, [PREPARED_KEY]: newPrepared };
+    await syncAndUpdate({ spells: spellsData } as any);
+  };
+
+  const resetSpellSlots = async () => {
+    const reset: Record<string, { max: number; used: number }> = {};
+    for (const [lvl, s] of Object.entries(spellSlots)) {
+      reset[lvl] = { ...s, used: 0 };
+    }
+    await update({ spellSlots: reset } as any);
+  };
+
+  const useSpellSlot = async (level: string) => {
+    const slot = spellSlots[level];
+    if (!slot) return;
+    const updated = { ...spellSlots, [level]: { ...slot, used: Math.min(slot.max, slot.used + 1) } };
+    await update({ spellSlots: updated } as any);
   };
 
   return (
     <div className="space-y-3">
-      {editing && (
-        <div className="grid grid-cols-2 gap-2">
+      {/* Spellcasting Info (always read-only, computed from class) */}
+      <div className="bg-dnd-bg rounded-lg p-3">
+        <h3 className="text-xs font-semibold text-dnd-muted mb-2">施法信息</h3>
+        <div className="grid grid-cols-4 gap-2 text-sm">
           <div>
-            <label className="block text-xs text-dnd-muted mb-1">施法职业</label>
-            <input
-              type="text"
-              value={character.spellcastingClass || ''}
-              onChange={e => update({ spellcastingClass: e.target.value || null } as any)}
-              className="w-full bg-dnd-surface border border-dnd-accent rounded px-2 py-1.5 text-sm"
-            />
+            <span className="text-xs text-dnd-muted block">施法职业</span>
+            <span className="font-medium">{classCnName}</span>
           </div>
           <div>
-            <label className="block text-xs text-dnd-muted mb-1">施法属性</label>
-            <select
-              value={character.spellcastingAbility || ''}
-              onChange={e => update({ spellcastingAbility: e.target.value || null } as any)}
-              className="w-full bg-dnd-surface border border-dnd-accent rounded px-2 py-1.5 text-sm"
-            >
-              <option value="">未设置</option>
-              {STAT_NAMES.map(s => (
-                <option key={s} value={STAT_FULL[s]}>{STAT_FULL[s]}</option>
-              ))}
-            </select>
+            <span className="text-xs text-dnd-muted block">施法属性</span>
+            <span className="font-medium">{spellAbility || '-'}</span>
           </div>
-          <EditField label="法术DC" value={character.spellSaveDc ? String(character.spellSaveDc) : String(computedSpellDc)} type="number" onChange={v => update({ spellSaveDc: v ? parseInt(v) : null } as any)} />
-          <EditField label="法术攻击加值" value={character.spellAttackBonus ? String(character.spellAttackBonus) : String(computedSpellAtk)} type="number" onChange={v => update({ spellAttackBonus: v ? parseInt(v) : null } as any)} />
+          <div>
+            <span className="text-xs text-dnd-muted block">法术DC</span>
+            <span className="font-bold text-dnd-primary">{effectiveSpellDc}</span>
+          </div>
+          <div>
+            <span className="text-xs text-dnd-muted block">攻击加值</span>
+            <span className="font-bold text-dnd-accent">{formatMod(effectiveSpellAtk)}</span>
+          </div>
         </div>
-      )}
-      <div className="grid grid-cols-3 gap-2">
-        <StatBlock label="施法属性" value={character.spellcastingAbility || '-'} />
-        <StatBlock label="法术DC" value={character.spellSaveDc ? String(character.spellSaveDc) : String(computedSpellDc)} highlight />
-        <StatBlock label="攻击加值" value={(character.spellAttackBonus ? formatMod(character.spellAttackBonus) : formatMod(computedSpellAtk))} />
+        {!hasSpellcasting && (
+          <p className="text-xs text-dnd-muted mt-2">{classCnName}无法施法</p>
+        )}
       </div>
 
       {/* Spell Slots */}
@@ -869,10 +913,10 @@ function SpellsPanel({ character, isOwner, editing, spells, spellSlots, computed
         </div>
       )}
 
-      {/* Spell Search & Add */}
-      {isOwner && editing && (
+      {/* Spell Search & Add (edit mode, owner only, only if class can cast) */}
+      {isOwner && editing && hasSpellcasting && (
         <div className="bg-dnd-bg rounded-lg p-3 relative">
-          <h3 className="text-xs font-semibold text-dnd-muted mb-2">搜索法术</h3>
+          <h3 className="text-xs font-semibold text-dnd-muted mb-2">搜索法术 — {classCnName}</h3>
           <div className="flex gap-2">
             <input
               type="text"
@@ -898,11 +942,11 @@ function SpellsPanel({ character, isOwner, editing, spells, spellSlots, computed
             <div className="mt-2 max-h-60 overflow-y-auto border border-dnd-accent/30 rounded">
               {filteredSpells.map((s, i) => {
                 const lvlName = s.level === 0 ? 'Cantrip' : `Lv${s.level}`;
-                const alreadyKnown = spells[lvlName]?.includes(s.cn);
+                const alreadyKnown = learned[lvlName]?.includes(s.cn);
                 return (
                   <button
                     key={i}
-                    onClick={() => addSpell(s.cn, lvlName)}
+                    onClick={() => addSpell(s.cn, s.level)}
                     disabled={alreadyKnown}
                     className={`w-full text-left px-3 py-2 text-sm border-b border-dnd-accent/10 last:border-0 ${
                       alreadyKnown ? 'bg-dnd-primary/10 text-dnd-muted cursor-not-allowed' : 'hover:bg-dnd-primary/10 text-dnd-text'
@@ -919,43 +963,416 @@ function SpellsPanel({ character, isOwner, editing, spells, spellSlots, computed
             </div>
           )}
           {showResults && spellFilter && filteredSpells.length === 0 && (
-            <p className="text-xs text-dnd-muted mt-2">未找到匹配的法术</p>
+            <p className="text-xs text-dnd-muted mt-2">未找到{classCnName}职业的匹配法术</p>
+          )}
+          {showResults && !spellFilter && spellLevelFilter < 0 && filteredSpells.length === 0 && (
+            <p className="text-xs text-dnd-muted mt-2">{classCnName}没有可用的法术</p>
           )}
         </div>
       )}
 
-      {/* Known Spells */}
-      {Object.entries(spells).length > 0 && (
+      {/* Learned Spells by level */}
+      {Object.keys(learned).length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-dnd-muted">已准备法术</h3>
-          {Object.entries(spells).map(([level, list]) => (
-            <div key={level} className="bg-dnd-bg rounded-lg p-3">
-              <h3 className="text-xs font-semibold text-dnd-muted mb-2">{level}</h3>
-              <div className="flex flex-wrap gap-1">
-                {list.map((name: string, i: number) => {
-                  const spellData = SPELLS.find(s => s.cn === name);
-                  return (
-                    <span key={i} className="text-xs bg-dnd-surface border border-dnd-accent/30 rounded px-2 py-1 flex items-center gap-1 group">
-                      <span className="font-medium">{name}</span>
-                      {spellData && <span className="text-dnd-muted hidden sm:inline">{spellData.level === 0 ? '戏法' : `${spellData.level}环`}</span>}
-                      {isOwner && editing && (
-                        <button
-                          onClick={() => removeSpell(level, name)}
-                          className="text-dnd-muted hover:text-dnd-danger ml-1 leading-none"
-                        >×</button>
-                      )}
-                    </span>
-                  );
-                })}
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-dnd-muted">
+              {editing ? '已学会法术' : '已准备法术'}
+            </h3>
+            {isPreparedCaster && editing && (
+              <span className={`text-xs ${preparedCount > maxPrepared ? 'text-dnd-danger' : 'text-dnd-muted'}`}>
+                已准备: {preparedCount}/{maxPrepared}
+              </span>
+            )}
+          </div>
+          {SPELL_LEVEL_ORDER.map(level => {
+            const list = learned[level];
+            if (!list || list.length === 0) return null;
+            return (
+              <div key={level} className="bg-dnd-bg rounded-lg p-3">
+                <h3 className="text-xs font-semibold text-dnd-muted mb-2">{level === 'Cantrip' ? '戏法' : level}</h3>
+                <div className="flex flex-wrap gap-1">
+                  {list.map((name: string, i: number) => {
+                    const spellData = SPELLS.find(s => s.cn === name);
+                    const isPrepared = preparedSpells.includes(name);
+                    const isCantrip = spellData && spellData.level === 0;
+                    const canTogglePrep = isPreparedCaster && editing && !isCantrip;
+                    const atPrepLimit = isPreparedCaster && !isPrepared && preparedCount >= maxPrepared;
+                    return (
+                      <span
+                        key={i}
+                        className={`text-xs border rounded px-2 py-1 flex items-center gap-1 group ${
+                          isPrepared
+                            ? 'bg-dnd-primary/10 border-dnd-primary/40 text-dnd-text'
+                            : 'bg-dnd-surface border-dnd-accent/20 text-dnd-muted'
+                        }`}
+                      >
+                        {canTogglePrep && (
+                          <button
+                            onClick={() => togglePrepared(name)}
+                            className="text-[10px] hover:text-dnd-primary leading-none"
+                            title={isPrepared ? '取消准备' : '准备'}
+                          >
+                            {isPrepared ? '●' : '○'}
+                          </button>
+                        )}
+                        <span className="font-medium">{name}</span>
+                        {spellData && <span className="text-dnd-muted hidden sm:inline">{spellData.level === 0 ? '戏法' : `${spellData.level}环`}</span>}
+                        {!isPrepared && !editing && <span className="text-[10px] text-dnd-muted">(未准备)</span>}
+                        {atPrepLimit && <span className="text-[10px] text-dnd-muted">(已达上限)</span>}
+                        {isOwner && editing && (
+                          <button
+                            onClick={() => removeSpell(level, name)}
+                            className="text-dnd-muted hover:text-dnd-danger ml-1 leading-none"
+                            title="忘记法术"
+                          >×</button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {Object.keys(spells).length === 0 && (
+      {!hasSpellsOrSlots && (
         <div className="text-center py-8 text-dnd-muted text-sm">
-          {isOwner && editing ? '使用上方搜索框添加法术' : '暂无已准备的法术'}
+          {isOwner && editing && hasSpellcasting ? '使用上方搜索框添加法术' : '暂无法术'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Equip Panel ───
+function armorLabel(key: string): string {
+  const map: Record<string, string> = { ac: 'AC', type: '类型', stealth: '潜行', strReq: '力量需求', properties: '属性' };
+  return map[key] || key;
+}
+
+const CURRENCY_COINS = ['cp', 'sp', 'ep', 'gp', 'pp'] as const;
+const CURRENCY_LABELS: Record<string, string> = { cp: '铜币', sp: '银币', ep: '金银币', gp: '金币', pp: '白金币' };
+
+function EquipPanel({ character, isOwner, editing, update }: {
+  character: Character;
+  isOwner: boolean;
+  editing: boolean;
+  update: (data: Partial<Character>) => Promise<void>;
+}) {
+  const weapons = safeArray<Record<string, unknown>>(character.weapons);
+  const armor = safeObj<Record<string, unknown>>(character.armor, {});
+  const currency = safeObj<Record<string, number>>(character.currency, { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
+  const equipment = safeArray<Record<string, unknown>>(character.equipment);
+  const inventory = safeObj<Record<string, unknown>>(character.inventory, {});
+
+  const addWeapon = async () => {
+    await update({ weapons: [...weapons, { name: '', atk: '+0', dmg: '1d4', type: '挥砍', properties: '' }] } as any);
+  };
+  const updateWeapon = async (idx: number, field: string, value: string) => {
+    const updated = weapons.map((w, i) => i === idx ? { ...w, [field]: value } : w);
+    await update({ weapons: updated } as any);
+  };
+  const removeWeapon = async (idx: number) => {
+    const updated = weapons.filter((_, i) => i !== idx);
+    await update({ weapons: updated.length > 0 ? updated : null } as any);
+  };
+
+  const updateArmor = async (field: string, value: string) => {
+    const updated = { ...armor, [field]: value };
+    await update({ armor: updated } as any);
+  };
+
+  const updateCurrency = async (coin: string, value: number) => {
+    const updated = { ...currency, [coin]: value };
+    await update({ currency: updated } as any);
+  };
+
+  const [equipSpellSearchIdx, setEquipSpellSearchIdx] = useState<number | null>(null);
+  const [equipSpellFilter, setEquipSpellFilter] = useState('');
+
+  const addEquipment = async () => {
+    await update({ equipment: [...equipment, { name: '', qty: 1 }] } as any);
+  };
+  const updateEquipment = async (idx: number, field: string, value: string | number) => {
+    const updated = equipment.map((e, i) => i === idx ? { ...e, [field]: value } : e);
+    await update({ equipment: updated } as any);
+  };
+  const removeEquipment = async (idx: number) => {
+    const updated = equipment.filter((_, i) => i !== idx);
+    setEquipSpellSearchIdx(null);
+    await update({ equipment: updated.length > 0 ? updated : null } as any);
+  };
+  const setEquipmentSpell = async (idx: number, spellCn: string) => {
+    const updated = equipment.map((e, i) => i === idx ? { ...e, spell: spellCn } : e);
+    await update({ equipment: updated } as any);
+    setEquipSpellFilter('');
+    setEquipSpellSearchIdx(null);
+  };
+  const removeEquipmentSpell = async (idx: number) => {
+    const updated = equipment.map((e: any, i: number) => {
+      if (i !== idx) return e;
+      const { spell, charges, ...rest } = e;
+      return rest;
+    });
+    await update({ equipment: updated } as any);
+  };
+
+  // Filter all spells for equipment spell search
+  const filteredEquipSpells = useMemo(() => {
+    if (!equipSpellFilter.trim()) return [];
+    const q = equipSpellFilter.toLowerCase();
+    return SPELLS.filter(s => s.cn.includes(q) || s.en.toLowerCase().includes(q)).slice(0, 20);
+  }, [equipSpellFilter]);
+
+  const hasArmorData = Object.keys(armor).length > 0;
+  const hasInventoryData = Object.keys(inventory).length > 0;
+
+  return (
+    <div className="space-y-3">
+      {/* Weapons */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-dnd-muted">武器</h3>
+          {isOwner && editing && (
+            <button onClick={addWeapon} className="text-xs text-dnd-primary hover:underline">+ 添加武器</button>
+          )}
+        </div>
+        {weapons.length === 0 && !editing && <p className="text-xs text-dnd-muted">无</p>}
+        {weapons.length === 0 && editing && <p className="text-xs text-dnd-muted">点击上方按钮添加武器</p>}
+        {weapons.map((w: any, i: number) => (
+          <div key={i} className="bg-dnd-bg rounded-lg p-3">
+            {editing ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <EditField label="名称" value={w.name || ''} onChange={v => updateWeapon(i, 'name', v)} />
+                  <EditField label="攻击加值" value={w.atk || ''} onChange={v => updateWeapon(i, 'atk', v)} />
+                  <EditField label="伤害" value={w.dmg || ''} onChange={v => updateWeapon(i, 'dmg', v)} />
+                  <EditField label="伤害类型" value={w.type || ''} onChange={v => updateWeapon(i, 'type', v)} />
+                </div>
+                <EditField label="属性" value={w.properties || ''} onChange={v => updateWeapon(i, 'properties', v)} />
+                <button onClick={() => removeWeapon(i)} className="text-xs text-dnd-danger hover:underline">移除</button>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-sm">{w.name || '未命名'}</span>
+                  <span className="text-xs text-dnd-accent">{w.atk}</span>
+                </div>
+                <div className="flex gap-3 text-xs text-dnd-muted mt-1">
+                  <span>伤害: {w.dmg}</span>
+                  <span>{w.type}</span>
+                </div>
+                {w.properties && <p className="text-[10px] text-dnd-muted mt-1">{w.properties}</p>}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Armor */}
+      {isOwner && editing ? (
+        <div className="bg-dnd-bg rounded-lg p-3 space-y-2">
+          <h3 className="text-xs font-semibold text-dnd-muted">护甲</h3>
+          <EditField label="名称" value={(armor as any).name || ''} onChange={v => updateArmor('name', v)} />
+          <div className="grid grid-cols-2 gap-2">
+            <EditField label="AC" value={(armor as any).ac || ''} onChange={v => updateArmor('ac', v)} />
+            <EditField label="类型" value={(armor as any).type || ''} onChange={v => updateArmor('type', v)} />
+            <EditField label="潜行" value={(armor as any).stealth || ''} onChange={v => updateArmor('stealth', v)} />
+            <EditField label="力量需求" value={(armor as any).strReq || ''} onChange={v => updateArmor('strReq', v)} />
+          </div>
+          <EditField label="属性" value={(armor as any).properties || ''} onChange={v => updateArmor('properties', v)} />
+        </div>
+      ) : (
+        hasArmorData && (
+          <div className="bg-dnd-bg rounded-lg p-3">
+            <h3 className="text-xs font-semibold text-dnd-muted mb-2">护甲</h3>
+            {(armor as any).name && <p className="text-sm font-medium mb-1">{(armor as any).name}</p>}
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              {Object.entries(armor).filter(([k]) => k !== 'name').map(([key, val]) => (
+                <div key={key}>
+                  <span className="text-xs text-dnd-muted block">{armorLabel(key)}</span>
+                  <span className="font-medium">{String(val)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* Currency */}
+      <div className="bg-dnd-bg rounded-lg p-3">
+        <h3 className="text-xs font-semibold text-dnd-muted mb-2">货币</h3>
+        {editing ? (
+          <div className="grid grid-cols-5 gap-1 text-center">
+            {CURRENCY_COINS.map(c => (
+              <div key={c}>
+                <span className="text-[10px] text-dnd-muted uppercase block">{c}</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={currency[c] || 0}
+                  onChange={e => updateCurrency(c, parseInt(e.target.value) || 0)}
+                  className="w-full bg-dnd-surface border border-dnd-accent rounded px-1 py-0.5 text-sm text-center"
+                />
+                <span className="text-[10px] text-dnd-muted block">{CURRENCY_LABELS[c]}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-5 gap-1 text-center text-sm">
+            {CURRENCY_COINS.map(c => (
+              <div key={c}>
+                <span className="text-[10px] text-dnd-muted uppercase block">{c}</span>
+                <span className="font-medium">{currency[c] || 0}</span>
+                <span className="text-[10px] text-dnd-muted block">{CURRENCY_LABELS[c]}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Equipment Items */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-dnd-muted">装备物品</h3>
+          {isOwner && editing && (
+            <button onClick={addEquipment} className="text-xs text-dnd-primary hover:underline">+ 添加物品</button>
+          )}
+        </div>
+        {equipment.length === 0 && !editing && <p className="text-xs text-dnd-muted">无</p>}
+        {equipment.length === 0 && editing && <p className="text-xs text-dnd-muted">点击上方按钮添加物品</p>}
+        {equipment.map((e: any, i: number) => {
+          const hasSpell = !!e.spell;
+          const spellData = e.spell ? SPELLS.find(s => s.cn === e.spell) : null;
+          const showSpellSearch = equipSpellSearchIdx === i;
+          return (
+            <div key={i} className="bg-dnd-bg rounded-lg p-3">
+              {editing ? (
+                <div className="space-y-2">
+                  {/* Name + qty row */}
+                  <div className="flex items-center gap-2">
+                    <BlurInput
+                      value={e.name || ''}
+                      onChange={v => updateEquipment(i, 'name', v)}
+                      placeholder="物品名称"
+                      className="flex-1 bg-dnd-surface border border-dnd-accent rounded px-2 py-1 text-sm"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={e.qty || 1}
+                      onChange={ev => updateEquipment(i, 'qty', parseInt(ev.target.value) || 1)}
+                      className="w-16 bg-dnd-surface border border-dnd-accent rounded px-2 py-1 text-sm text-center"
+                    />
+                    <button
+                      onClick={() => removeEquipment(i)}
+                      className="text-dnd-muted hover:text-dnd-danger shrink-0"
+                    >✕</button>
+                  </div>
+
+                  {/* Spell attachment */}
+                  {hasSpell ? (
+                    <div className="flex items-center gap-2 bg-dnd-surface rounded p-2">
+                      <span className="text-xs text-dnd-accent">{e.spell}</span>
+                      {spellData && (
+                        <span className="text-[10px] text-dnd-muted">{spellData.level === 0 ? '戏法' : `${spellData.level}环`}</span>
+                      )}
+                      <button
+                        onClick={() => removeEquipmentSpell(i)}
+                        className="text-[10px] text-dnd-danger hover:underline ml-auto"
+                      >移除法术</button>
+                    </div>
+                  ) : showSpellSearch ? (
+                    <div className="space-y-1">
+                      <div className="flex gap-1">
+                        <BlurInput
+                          value={equipSpellFilter}
+                          onChange={setEquipSpellFilter}
+                          placeholder="搜索法术..."
+                          className="flex-1 bg-dnd-surface border border-dnd-accent rounded px-2 py-1 text-xs"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => { setEquipSpellSearchIdx(null); setEquipSpellFilter(''); }}
+                          className="text-xs text-dnd-muted hover:text-dnd-text px-1"
+                        >取消</button>
+                      </div>
+                      {filteredEquipSpells.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto border border-dnd-accent/20 rounded">
+                          {filteredEquipSpells.map((s, si) => (
+                            <button
+                              key={si}
+                              onClick={() => setEquipmentSpell(i, s.cn)}
+                              className="w-full text-left px-2 py-1 text-xs hover:bg-dnd-primary/10 border-b border-dnd-accent/10 last:border-0"
+                            >
+                              <span className="font-medium">{s.cn}</span>
+                              <span className="text-dnd-muted ml-1">{s.en}</span>
+                              <span className="text-dnd-accent ml-1">{s.level === 0 ? '戏法' : `${s.level}环`}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {equipSpellFilter && filteredEquipSpells.length === 0 && (
+                        <p className="text-[10px] text-dnd-muted">未找到匹配法术</p>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setEquipSpellSearchIdx(i)}
+                      className="text-[10px] text-dnd-primary hover:underline"
+                    >+ 附加法术</button>
+                  )}
+
+                  {/* Charges (if spell attached) */}
+                  {hasSpell && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-dnd-muted shrink-0">充能数:</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={e.charges ?? 0}
+                        onChange={ev => updateEquipment(i, 'charges', parseInt(ev.target.value) || 0)}
+                        className="w-16 bg-dnd-surface border border-dnd-accent rounded px-2 py-1 text-xs text-center"
+                      />
+                      <span className="text-[10px] text-dnd-muted">/天</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{e.name || '未命名'}</span>
+                    {e.qty != null && <span className="text-dnd-muted">x{e.qty}</span>}
+                  </div>
+                  {hasSpell && (
+                    <div className="flex items-center gap-2 mt-1 text-xs text-dnd-muted">
+                      <span className="text-dnd-accent">{e.spell}</span>
+                      {spellData && <span>{spellData.level === 0 ? '戏法' : `${spellData.level}环`}</span>}
+                      {e.charges != null && e.charges > 0 && (
+                        <span className="text-dnd-primary">充能: {e.charges}/天</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Inventory (legacy - read only) */}
+      {hasInventoryData && equipment.length === 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold text-dnd-muted">背包 (旧数据)</h3>
+          {Object.entries(inventory as Record<string, any>).map(([item, info]) => (
+            <div key={item} className="bg-dnd-bg rounded-lg p-3 flex justify-between text-sm">
+              <span className="capitalize">{item}</span>
+              <span className="text-dnd-muted text-xs">
+                {typeof info === 'object' ? `x${info.qty || 1}` : String(info)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

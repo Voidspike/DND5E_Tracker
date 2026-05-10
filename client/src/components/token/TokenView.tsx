@@ -16,8 +16,12 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
   const [hp, setHp] = useState(token?.hpCurrent?.toString() || '');
   const [hpMax, setHpMax] = useState(token?.hpMax?.toString() || '');
   const [newEffect, setNewEffect] = useState('');
+  const [linking, setLinking] = useState(false);
 
   if (!token) return null;
+
+  // Debug: log token prop on render
+  console.log('[TokenView] render: token.id=%s token.characterId=%s', token.id, token.characterId || 'none');
 
   const canEdit = isDM || token.ownerId === userId;
 
@@ -64,7 +68,13 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
       )}
 
       <h3 className="text-center font-bold mb-1">{token.name}</h3>
-      <p className="text-center text-xs text-dnd-muted mb-4 capitalize">{token.type}</p>
+      {linkedChar ? (
+        <p className="text-center text-xs text-dnd-accent mb-2">
+          Lv{linkedChar.level} {linkedChar.class}
+        </p>
+      ) : (
+        <p className="text-center text-xs text-dnd-muted mb-4 capitalize">{token.type}</p>
+      )}
 
       {/* Stats */}
       <div className="space-y-2 text-sm">
@@ -98,23 +108,60 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
       {canEdit && (
         <div className="mt-3">
           <p className="text-xs text-dnd-muted mb-1">Link Character</p>
-          <select
-            value={token.characterId || ''}
-            onChange={async (e) => {
-              const charId = e.target.value || null;
-              const updates = { characterId: charId };
-              await updateToken(token.id, updates);
-              socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
-            }}
-            className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1 text-sm"
-          >
-            <option value="">None</option>
-            {characters.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.name} (Lv{c.level} {c.class})
-              </option>
-            ))}
-          </select>
+          {characters.length === 0 ? (
+            <p className="text-xs text-dnd-muted italic">No characters available</p>
+          ) : (
+            <select
+              value={token.characterId || ''}
+              disabled={linking}
+              onChange={async (e) => {
+                const charId = e.target.value || null;
+                console.log('[TokenView] onChange fired. token.id=%s charId=%s', token.id, charId || 'none');
+                setLinking(true);
+                try {
+                  if (charId) {
+                    const char = characters.find((c: any) => c.id === charId);
+                    if (!char) { console.error('[TokenView] Character not found:', charId); return; }
+                    // Sync character properties to token
+                    const updates: Record<string, unknown> = {
+                      characterId: charId,
+                      name: char.name,
+                      hpCurrent: char.hpCurrent,
+                      hpMax: char.hpMax,
+                      ac: char.ac,
+                      darkvision: char.darkvision,
+                      speed: char.speed,
+                      imageUrl: token.imageUrl || char.imageUrl,
+                    };
+                    // Remove undefined values
+                    Object.keys(updates).forEach(k => {
+                      if (updates[k] === undefined || updates[k] === null) delete updates[k];
+                    });
+                    console.log('[TokenView] Syncing token with character data:', updates);
+                    await updateToken(token.id, updates);
+                    socket.emit('token:update', { tokenId: token.id, updates });
+                  } else {
+                    // Unlink: only clear characterId, keep token properties
+                    await updateToken(token.id, { characterId: null });
+                    socket.emit('token:update', { tokenId: token.id, updates: { characterId: null } });
+                  }
+                  console.log('[TokenView] Link updated successfully');
+                } catch (err) {
+                  console.error('[TokenView] Failed to link character:', err);
+                } finally {
+                  setLinking(false);
+                }
+              }}
+              className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1 text-sm"
+            >
+              <option value="">None</option>
+              {characters.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} (Lv{c.level} {c.class})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
