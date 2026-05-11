@@ -42,6 +42,8 @@ interface GameState {
   diceHistory: DiceRollResult[];
   chatMessages: ChatMessageItem[];
   fogData: string | null;
+  combatMode: boolean;
+  tokenMovementUsed: Record<string, number>;
 
   setOnlinePlayers: (players: OnlinePlayer[]) => void;
   setSelectedTokenId: (id: string | null) => void;
@@ -53,6 +55,9 @@ interface GameState {
   addDiceRoll: (roll: DiceRollResult) => void;
   addChatMessage: (msg: ChatMessageItem) => void;
   setFogData: (data: string | null) => void;
+  setCombatMode: (active: boolean) => void;
+  setTokenMovementUsed: (tokenId: string, distance: number) => void;
+  resetTokenMovement: () => void;
   reset: () => void;
 }
 
@@ -71,10 +76,15 @@ export const useGameStore = create<GameState>((set) => ({
   diceHistory: [],
   chatMessages: [],
   fogData: null,
+  combatMode: false,
+  tokenMovementUsed: {},
 
   setOnlinePlayers: (players) => set({ onlinePlayers: players }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
-  setCombatTracker: (tracker) => set({ combatTracker: tracker, combatLog: tracker?.log || [] }),
+  setCombatTracker: (tracker) => set({ combatTracker: tracker, combatLog: tracker?.log || [], tokenMovementUsed: {} }),
+  setCombatMode: (active) => set({ combatMode: active }),
+  setTokenMovementUsed: (tokenId, distance) => set((s) => ({ tokenMovementUsed: { ...s.tokenMovementUsed, [tokenId]: distance } })),
+  resetTokenMovement: () => set({ tokenMovementUsed: {} }),
   addCombatParticipant: (participant) =>
     set((s) => {
       if (!s.combatTracker) return s;
@@ -122,5 +132,7 @@ export const useGameStore = create<GameState>((set) => ({
       diceHistory: [],
       chatMessages: [],
       fogData: null,
+      combatMode: false,
+      tokenMovementUsed: {},
     }),
 }));

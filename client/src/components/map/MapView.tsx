@@ -20,7 +20,7 @@ interface MapViewProps {
 
 export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
   const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters, updateCharacter } = useCampaignStore();
-  const { fogData, setFogData, setSelectedTokenId } = useGameStore();
+  const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const visionCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,6 +46,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const [dragTokenId, setDragTokenId] = useState<string | null>(null);
   const [dragTokenOffset, setDragTokenOffset] = useState({ x: 0, y: 0 });
   const [dragTokenPos, setDragTokenPos] = useState({ x: 0, y: 0 });
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
   const [createTokenType, setCreateTokenType] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ tokenId: string; x: number; y: number } | null>(null);
   const touchRef = useRef<{
@@ -235,8 +236,25 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     }
     if (dragTokenId) {
       const coords = getGridCoords(e.clientX, e.clientY);
-      const newX = coords.x - dragTokenOffset.x;
-      const newY = coords.y - dragTokenOffset.y;
+      let newX = coords.x - dragTokenOffset.x;
+      let newY = coords.y - dragTokenOffset.y;
+      // Speed limit in combat mode
+      if (combatMode) {
+        const draggedToken = tokens.find((t: any) => t.id === dragTokenId);
+        if (draggedToken) {
+          const speed = draggedToken.speed || 30;
+          const maxGrids = speed / 5;
+          const startPos = dragStartPosRef.current;
+          const dx = newX - startPos.x;
+          const dy = newY - startPos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > maxGrids) {
+            const scale = maxGrids / dist;
+            newX = startPos.x + dx * scale;
+            newY = startPos.y + dy * scale;
+          }
+        }
+      }
       setDragTokenPos({ x: newX, y: newY });
       socket.emit('token:drag', { tokenId: dragTokenId, x: newX, y: newY });
       return;
@@ -297,6 +315,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
         setDragTokenId(touchedToken.id);
         setDragTokenOffset({ x: coords.x - touchedToken.x, y: coords.y - touchedToken.y });
         setDragTokenPos({ x: touchedToken.x, y: touchedToken.y });
+        dragStartPosRef.current = { x: touchedToken.x, y: touchedToken.y };
         touchRef.current.touches.set(touch.identifier, { startX: 0, startY: 0, startScale: 0, startOffset: { x: 0, y: 0 } });
       } else {
         // Pan start
@@ -334,8 +353,24 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     if (e.touches.length === 1 && dragTokenId) {
       const touch = e.touches[0];
       const coords = getGridCoords(touch.clientX, touch.clientY);
-      const newX = coords.x - dragTokenOffset.x;
-      const newY = coords.y - dragTokenOffset.y;
+      let newX = coords.x - dragTokenOffset.x;
+      let newY = coords.y - dragTokenOffset.y;
+      if (combatMode) {
+        const draggedToken = tokens.find((t: any) => t.id === dragTokenId);
+        if (draggedToken) {
+          const speed = draggedToken.speed || 30;
+          const maxGrids = speed / 5;
+          const startPos = dragStartPosRef.current;
+          const dx = newX - startPos.x;
+          const dy = newY - startPos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > maxGrids) {
+            const scale = maxGrids / dist;
+            newX = startPos.x + dx * scale;
+            newY = startPos.y + dy * scale;
+          }
+        }
+      }
       setDragTokenPos({ x: newX, y: newY });
       socket.emit('token:drag', { tokenId: dragTokenId, x: newX, y: newY });
       return;
@@ -469,6 +504,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     setDragTokenId(token.id);
     setDragTokenPos({ x: token.x, y: token.y });
     setDragTokenOffset({ x: coords.x - token.x, y: coords.y - token.y });
+    dragStartPosRef.current = { x: token.x, y: token.y };
     setSelectedTokenId(token.id);
     socket.emit('token:select', token.id);
   };
@@ -823,6 +859,30 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             >
               {tokens.find((t: any) => t.id === selectedTokenId)?.isHidden ? '👁‍🗨' : '👁'}
             </button>
+          )}
+          {isDM && (
+            <>
+              <div className="w-px h-5 bg-dnd-accent/40 mx-1" />
+              <button
+                onClick={() => {
+                  if (!combatMode) {
+                    // Enter combat mode - start combat with all tokens
+                    setCombatMode(true);
+                    socket.emit('combat:start', { campaignId: map.campaignId, mapId: map.id, tokenIds: tokens.map((t: any) => t.id) });
+                  } else {
+                    // Exit combat mode
+                    setCombatMode(false);
+                    if (combatTracker) socket.emit('combat:end', combatTracker.id);
+                  }
+                }}
+                className={`px-2 py-1 rounded text-xs font-bold transition-all ${
+                  combatMode ? 'bg-dnd-danger/30 text-dnd-danger' : 'bg-dnd-accent/30 text-dnd-accent hover:bg-dnd-accent/50'
+                }`}
+                title={combatMode ? 'Exit Combat Mode' : 'Enter Combat Mode'}
+              >
+                {combatMode ? '⚔ Exit Combat' : '⚔ Combat'}
+              </button>
+            </>
           )}
         </div>
       )}

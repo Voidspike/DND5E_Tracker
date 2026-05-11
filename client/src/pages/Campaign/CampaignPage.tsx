@@ -21,7 +21,7 @@ export default function CampaignPage() {
   const { user } = useAuthStore();
   const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokensByCampaign, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
     useCampaignStore();
-  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages, setSelectedTokenId } = useGameStore();
+  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages, setSelectedTokenId, combatMode } = useGameStore();
   const socket = useSocket(id);
 
   const [activeTab, setActiveTab] = useState<Tab>('map');
@@ -661,7 +661,7 @@ export default function CampaignPage() {
         </div>
 
         {/* Token Sidebar */}
-        {selectedTokenId && (
+        {selectedTokenId && !combatMode && (
           <div className="w-72 bg-dnd-surface/80 border-l border-dnd-accent/50 overflow-y-auto shrink-0 hidden sm:block">
             <div className="flex items-center justify-between px-4 py-2 border-b border-dnd-accent/50">
               <span className="text-sm font-semibold">Token Details</span>
@@ -681,6 +681,13 @@ export default function CampaignPage() {
               userId={user?.id}
               socket={socket}
             />
+          </div>
+        )}
+
+        {/* Combat Sidebar */}
+        {combatMode && activeTab === 'map' && (
+          <div className="w-72 bg-dnd-surface/80 border-l border-dnd-accent/50 overflow-y-auto shrink-0 hidden sm:block">
+            <CombatTracker isDM={isDM} socket={socket} campaignId={id!} tokens={tokens} />
           </div>
         )}
       </div>

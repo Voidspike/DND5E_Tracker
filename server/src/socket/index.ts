@@ -189,13 +189,32 @@ export function setupSocket(httpServer: HTTPServer): Server {
     });
 
     // ─── Combat Operations ───
-    socket.on('combat:start', async (campaignId: string) => {
+    socket.on('combat:start', async (data: any) => {
       if (!socket.campaignId) return;
+      const campaignId = typeof data === 'string' ? data : data.campaignId;
+      const mapId = typeof data === 'object' ? data.mapId : undefined;
+      const tokenIds: string[] = typeof data === 'object' ? (data.tokenIds || []) : [];
       const combat = await prisma.combatTracker.create({
-        data: { campaignId },
+        data: { campaignId, mapId },
         include: { participants: true },
       });
-      io.to(`campaign:${campaignId}`).emit('combat:start', combat as any);
+      // Auto-add all specified tokens to combat
+      for (const tokenId of tokenIds) {
+        const token = await prisma.token.findUnique({ where: { id: tokenId }, select: { name: true } });
+        await prisma.combatParticipant.create({
+          data: {
+            combatId: combat.id,
+            tokenId,
+            initiative: 0,
+            label: token?.name || tokenId.slice(0, 8),
+          },
+        }).catch(console.error);
+      }
+      const updated = await prisma.combatTracker.findUnique({
+        where: { id: combat.id },
+        include: { participants: true },
+      });
+      io.to(`campaign:${campaignId}`).emit('combat:start', updated as any);
       emitSystemMessage(campaignId, 'Combat has started!');
       appendCombatLog(combat.id, campaignId, 'start', 'Combat started', 1);
     });
@@ -309,6 +328,37 @@ export function setupSocket(httpServer: HTTPServer): Server {
       const rname = participant?.label || participant?.tokenId?.slice(0, 8) || 'Unknown';
       io.to(`campaign:${socket.campaignId}`).emit('combat:remove', data.participantId);
       appendCombatLog(data.combatId, socket.campaignId!, 'remove', `${rname} removed from combat`, combat?.round || 1);
+    });
+
+    socket.on('combat:action', async (data: { combatId: string; tokenId: string; action: string; target?: string; value?: number; note?: string }) => {
+      if (!socket.campaignId) return;
+      const combat = await prisma.combatTracker.findUnique({ where: { id: data.combatId }, select: { round: true } });
+      const token = await prisma.token.findUnique({ where: { id: data.tokenId }, select: { name: true } });
+      const actorName = token?.name || data.tokenId.slice(0, 8);
+      const actionLabels: Record<string, string> = {
+        dash: 'Dash',
+        melee: 'Melee Attack',
+        ranged: 'Ranged Attack',
+        spell: 'Cast Spell',
+        bonus: 'Bonus Action',
+        dodge: 'Dodge',
+        disengage: 'Disengage',
+        help: 'Help',
+        ready: 'Ready Action',
+        other: 'Other',
+      };
+      const actionLabel = actionLabels[data.action] || data.action;
+      let msg = `${actorName}: ${actionLabel}`;
+      if (data.target) msg += ` → ${data.target}`;
+      if (data.value !== undefined) msg += ` (${data.value})`;
+      if (data.note) msg += ` — ${data.note}`;
+      io.to(`campaign:${socket.campaignId}`).emit('combat:log', {
+        type: 'action',
+        message: msg,
+        round: combat?.round || 1,
+        timestamp: new Date().toISOString(),
+      });
+      appendCombatLog(data.combatId, socket.campaignId!, 'action', msg, combat?.round || 1);
     });
 
     socket.on('combat:initiative:update', async (data) => {
