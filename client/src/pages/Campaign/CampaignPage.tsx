@@ -19,7 +19,7 @@ export default function CampaignPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokensByCampaign, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
+  const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokens, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
     useCampaignStore();
   const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages, setSelectedTokenId, combatMode } = useGameStore();
   const socket = useSocket(id);
@@ -55,13 +55,13 @@ export default function CampaignPage() {
     }
   }, [id]);
 
-  useEffect(() => {
-    if (maps.length > 0 && id) {
-      fetchTokensByCampaign(id);
-    }
-  }, [maps, id]);
-
   const currentMap = maps.find((m) => m.id === currentMapId) || maps[0];
+
+  useEffect(() => {
+    if (currentMap?.id) {
+      fetchTokens(currentMap.id);
+    }
+  }, [currentMap?.id]);
 
   // Sync fogData from current map
   useEffect(() => {

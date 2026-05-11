@@ -106,6 +106,9 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
     res.status(403).json({ error: 'Only the DM can delete maps' });
     return;
   }
+  // Cascade: delete tokens, combat trackers, then map
+  await prisma.token.deleteMany({ where: { mapId: req.params.id } });
+  await prisma.combatTracker.deleteMany({ where: { mapId: req.params.id } });
   await prisma.map.delete({ where: { id: req.params.id } });
   res.status(204).send();
 });
