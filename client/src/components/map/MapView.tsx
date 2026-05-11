@@ -656,7 +656,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                     if (!isDM) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
                   }}
                 >
-                  <img src={portraitUrl} alt={token.name} className="w-full h-full object-cover" />
+                  <img src={portraitUrl} alt={token.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
                 </div>
               ) : (
                 <div
