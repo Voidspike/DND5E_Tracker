@@ -168,43 +168,150 @@ export function setupSocket(httpServer: HTTPServer): Server {
     });
 
     // ─── Combat Operations ───
-    socket.on('combat:start', async (data: any) => {
+
+    // Get or create combat for a map (auto-import all tokens)
+    socket.on('combat:start', async (data: { campaignId: string; mapId: string }) => {
       if (!socket.campaignId) return;
-      const campaignId = typeof data === 'string' ? data : data.campaignId;
-      const mapId = typeof data === 'object' ? data.mapId : undefined;
-      const tokenIds: string[] = typeof data === 'object' ? (data.tokenIds || []) : [];
-      const combat = await prisma.combatTracker.create({
-        data: { campaignId, mapId },
+      const { campaignId, mapId } = data;
+
+      // Find existing paused/setup/active combat for this map
+      let combat = await prisma.combatTracker.findFirst({
+        where: { mapId, status: { in: ['setup', 'active', 'paused'] } },
         include: { participants: true },
       });
-      // Auto-add all specified tokens to combat
-      for (const tokenId of tokenIds) {
-        const token = await prisma.token.findUnique({ where: { id: tokenId }, select: { name: true } });
-        await prisma.combatParticipant.create({
+
+      if (!combat) {
+        // Count previous combats for this map to generate name
+        const previousCount = await prisma.combatTracker.count({ where: { mapId } });
+        const mapInfo = await prisma.map.findUnique({ where: { id: mapId }, select: { name: true } });
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const autoName = `${mapInfo?.name || 'Map'}-战斗${previousCount + 1}-${timeStr}`;
+
+        combat = await prisma.combatTracker.create({
           data: {
-            combatId: combat.id,
-            tokenId,
-            initiative: 0,
-            label: token?.name || tokenId.slice(0, 8),
+            campaignId,
+            mapId,
+            name: autoName,
+            status: 'setup',
           },
-        }).catch(console.error);
+          include: { participants: true },
+        });
+
+        // Auto-import all tokens on this map
+        const mapTokens = await prisma.token.findMany({ where: { mapId } });
+        for (const token of mapTokens) {
+          await prisma.combatParticipant.create({
+            data: {
+              combatId: combat.id,
+              tokenId: token.id,
+              initiative: 0,
+              label: token.name,
+            },
+          }).catch(console.error);
+        }
+
+        combat = await prisma.combatTracker.findUnique({
+          where: { id: combat.id },
+          include: { participants: true },
+        })!;
+      } else if (combat.status === 'paused') {
+        // Resume paused combat
+        await prisma.combatTracker.update({
+          where: { id: combat.id },
+          data: { status: 'active', isActive: true },
+        });
+        combat = (await prisma.combatTracker.findUnique({
+          where: { id: combat.id },
+          include: { participants: true },
+        }))!;
       }
-      const updated = await prisma.combatTracker.findUnique({
-        where: { id: combat.id },
-        include: { participants: true },
-      });
-      io.to(`campaign:${campaignId}`).emit('combat:start', updated as any);
-      emitSystemMessage(campaignId, 'Combat has started!');
-      appendCombatLog(combat.id, campaignId, 'start', 'Combat started', 1);
+
+      io.to(`campaign:${campaignId}`).emit('combat:start', combat as any);
+      emitSystemMessage(campaignId, 'Combat mode activated.');
     });
 
-    socket.on('combat:end', async (combatId: string) => {
+    // Start recording — transition from setup to active
+    socket.on('combat:start_recording', async (combatId: string) => {
       if (!socket.campaignId) return;
-      const combat = await prisma.combatTracker.findUnique({ where: { id: combatId } });
-      await prisma.combatTracker.update({ where: { id: combatId }, data: { isActive: false } });
+      const combat = await prisma.combatTracker.findUnique({
+        where: { id: combatId },
+        include: { participants: true },
+      });
+      if (!combat || combat.status !== 'setup') return;
+
+      // Set first active turn
+      const sorted = [...combat.participants].sort((a, b) => b.initiative - a.initiative);
+      if (sorted.length > 0) {
+        await prisma.combatParticipant.update({
+          where: { id: sorted[0].id },
+          data: { isActiveTurn: true },
+        });
+      }
+
+      const updated = await prisma.combatTracker.update({
+        where: { id: combatId },
+        data: {
+          status: 'active',
+          isActive: true,
+          startedAt: new Date(),
+          round: 1,
+          currentTurnIndex: 0,
+          log: JSON.stringify([]),
+        },
+        include: { participants: true },
+      });
+
+      io.to(`campaign:${socket.campaignId}`).emit('combat:start', updated as any);
+      emitSystemMessage(socket.campaignId!, `Combat "${updated.name}" — recording started! Round 1 begins.`);
+      appendCombatLog(combatId, socket.campaignId!, 'start', `Combat "${updated.name}" recording started`, 1);
+    });
+
+    // Pause combat (close combat mode / switch map)
+    socket.on('combat:pause', async (combatId: string) => {
+      if (!socket.campaignId) return;
+      await prisma.combatTracker.update({
+        where: { id: combatId },
+        data: { status: 'paused', isActive: false },
+      });
       io.to(`campaign:${socket.campaignId}`).emit('combat:end');
-      emitSystemMessage(socket.campaignId!, 'Combat has ended.');
-      appendCombatLog(combatId, socket.campaignId!, 'end', 'Combat ended', combat?.round || 1);
+      emitSystemMessage(socket.campaignId!, 'Combat paused.');
+    });
+
+    // End combat with save/discard option
+    socket.on('combat:end', async (data: { combatId: string; save: boolean }) => {
+      if (!socket.campaignId) return;
+      const { combatId, save } = data;
+
+      if (save) {
+        await prisma.combatTracker.update({
+          where: { id: combatId },
+          data: {
+            status: 'completed',
+            isActive: false,
+            endedAt: new Date(),
+          },
+        });
+        const combat = await prisma.combatTracker.findUnique({ where: { id: combatId }, select: { name: true } });
+        emitSystemMessage(socket.campaignId!, `Combat "${combat?.name}" saved to map history.`);
+      } else {
+        // Discard — delete the combat and its participants
+        await prisma.combatParticipant.deleteMany({ where: { combatId } });
+        await prisma.combatTracker.delete({ where: { id: combatId } });
+        emitSystemMessage(socket.campaignId!, 'Combat discarded.');
+      }
+
+      io.to(`campaign:${socket.campaignId}`).emit('combat:end');
+    });
+
+    // Update combat name (DM only for now — no ownership check yet)
+    socket.on('combat:update_name', async (data: { combatId: string; name: string }) => {
+      if (!socket.campaignId) return;
+      await prisma.combatTracker.update({
+        where: { id: data.combatId },
+        data: { name: data.name },
+      });
+      io.to(`campaign:${socket.campaignId}`).emit('combat:update_name', data);
     });
 
     socket.on('combat:next_turn', async (combatId: string) => {

@@ -14,11 +14,14 @@ interface MapViewProps {
   map: any;
   tokens: any[];
   isDM: boolean;
+  userId?: string;
   socket: Socket;
   selectedTokenId?: string | null;
 }
 
-export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
+export default function MapView({ map, tokens, isDM, userId, socket, selectedTokenId }: MapViewProps) {
+
+  const canEditToken = (token: any) => isDM || (userId && token.ownerId === userId);
   const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters, updateCharacter } = useCampaignStore();
   const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement, highlightedTokenId, setHighlightedTokenId } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -345,7 +348,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
         const dist = Math.sqrt((pos.x - tx) ** 2 + (pos.y - ty) ** 2);
         return dist < size / 2 + 10;
       });
-      if (touchedToken && isDM) {
+      if (touchedToken && canEditToken(touchedToken)) {
         const coords = getGridCoords(touch.clientX, touch.clientY);
         setDragTokenId(touchedToken.id);
         setDragTokenOffset({ x: coords.x - touchedToken.x, y: coords.y - touchedToken.y });
@@ -514,19 +517,21 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     setContextMenu(null);
     setSelectedTokenId(null);
     socket.emit('token:select', null);
-    if (fogMode !== 'none' || dragTokenId || !isDM || !containerRef.current) return;
-    if (!createTokenType) return;
+    if (fogMode !== 'none' || dragTokenId || !containerRef.current) return;
+    if (!createTokenType || (!isDM && !userId)) return;
     const coords = getGridCoords(e.clientX, e.clientY);
 
     const typeDef = TOKEN_TYPES.find((t) => t.value === createTokenType);
-    const tokenData = {
+    const tokenData: any = {
       mapId: map.id,
-      type: createTokenType as any,
+      type: createTokenType,
       name: typeDef?.label || 'New Token',
       x: coords.x,
       y: coords.y,
       color: typeDef?.color || '#e94560',
     };
+    // Non-DM players always own their tokens
+    if (!isDM) tokenData.ownerId = userId;
 
     const created = await createToken(tokenData);
     socket.emit('token:create', { campaignId: map.campaignId, token: created });
@@ -535,6 +540,12 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
   const handleTokenMouseDown = (e: React.MouseEvent, token: any) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+    if (!isDM && token.ownerId !== userId) {
+      // Player selecting a token they don't own — just select, don't drag
+      setSelectedTokenId(token.id);
+      socket.emit('token:select', token.id);
+      return;
+    }
     const coords = getGridCoords(e.clientX, e.clientY);
     setDragTokenId(token.id);
     setDragTokenPos({ x: token.x, y: token.y });
@@ -690,7 +701,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
       {/* Tokens */}
       {tokens
-        .filter((t) => t.mapId === map.id && (isDM || !t.isHidden))
+        .filter((t) => t.mapId === map.id && (isDM || !t.isHidden || t.ownerId === userId))
         .map((token) => (
           <div key={token.id} className="absolute" style={{
             left: (dragTokenId === token.id ? dragTokenPos.x : token.x) * gridPixels * scale + offset.x,
@@ -701,7 +712,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
           }}
           onContextMenu={(e) => {
             e.preventDefault();
-            if (isDM || token.ownerId === undefined) {
+            if (canEditToken(token) || token.ownerId === undefined) {
               setContextMenu({ tokenId: token.id, x: e.clientX, y: e.clientY });
             }
           }}>
@@ -719,7 +730,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                     width: size,
                     height: size,
                     borderColor: token.color,
-                    cursor: isDM ? 'grab' : 'pointer',
+                    cursor: canEditToken(token) ? 'grab' : 'pointer',
                     minWidth: 24,
                     minHeight: 24,
                     boxShadow: token.id === activeTurnTokenId
@@ -729,12 +740,12 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                         : undefined,
                   }}
                   onMouseDown={(e) => {
-                    if (!isDM) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
+                    if (!canEditToken(token)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
                     handleTokenMouseDown(e, token);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!isDM) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
+                    if (!canEditToken(token)) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
                   }}
                 >
                   <img src={portraitUrl} alt={token.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
@@ -749,7 +760,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                     height: size,
                     backgroundColor: token.color + '40',
                     borderColor: token.color,
-                    cursor: isDM ? 'grab' : 'pointer',
+                    cursor: canEditToken(token) ? 'grab' : 'pointer',
                     minWidth: 24,
                     minHeight: 24,
                     boxShadow: token.id === activeTurnTokenId
@@ -759,12 +770,12 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                         : undefined,
                   }}
                   onMouseDown={(e) => {
-                    if (!isDM) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
+                    if (!canEditToken(token)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
                     handleTokenMouseDown(e, token);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!isDM) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
+                    if (!canEditToken(token)) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
                   }}
                 >
                   <span className="text-xs font-bold text-white drop-shadow-lg select-none" style={{ fontSize: `${Math.max(10, 14 * scale)}px` }}>
@@ -774,8 +785,8 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
               );
             })()}
 
-            {/* HP Bar below token (DM only) */}
-            {isDM && token.hpMax && (
+            {/* HP Bar below token */}
+            {canEditToken(token) && token.hpMax && (
               <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 rounded px-1 py-0.5 whitespace-nowrap" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleHPChange(token, -1); }}
@@ -800,7 +811,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             )}
 
             {/* Hidden indicator */}
-            {isDM && token.isHidden && (
+            {canEditToken(token) && token.isHidden && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] bg-dnd-warning/30 text-dnd-warning px-1 rounded" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
                 hidden
               </div>
@@ -828,7 +839,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             >
               View Details
             </button>
-            {isDM && (
+            {canEditToken(ctxToken) && (
               <>
                 <button
                   onClick={() => {
@@ -876,8 +887,8 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
         );
       })()}
 
-      {/* Token Creation Toolbar (DM only) */}
-      {isDM && !playerViewMode && (
+      {/* Token Creation Toolbar */}
+      {(isDM || userId) && !playerViewMode && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-dnd-surface/90 border border-dnd-accent rounded-lg px-2 py-1.5 flex items-center gap-1 shadow-lg z-20">
           {TOKEN_TYPES.map((t) => (
             <button
@@ -916,13 +927,13 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
               <button
                 onClick={() => {
                   if (!combatMode) {
-                    // Enter combat mode - start combat with all tokens
                     setCombatMode(true);
-                    socket.emit('combat:start', { campaignId: map.campaignId, mapId: map.id, tokenIds: tokens.map((t: any) => t.id) });
+                    socket.emit('combat:start', { campaignId: map.campaignId, mapId: map.id });
                   } else {
-                    // Exit combat mode
                     setCombatMode(false);
-                    if (combatTracker) socket.emit('combat:end', combatTracker.id);
+                    if (combatTracker && combatTracker.status !== 'completed') {
+                      socket.emit('combat:pause', combatTracker.id);
+                    }
                   }
                 }}
                 className={`px-2 py-1 rounded text-xs font-bold transition-all ${

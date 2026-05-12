@@ -19,9 +19,9 @@ export default function CampaignPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokens, fetchCharacters, updateCampaign, leaveCampaign, kickPlayer } =
+  const { currentCampaign, maps, tokens, characters, loading, fetchCampaign, fetchMaps, createMap, fetchTokens, fetchCharacters, createCharacter, updateCampaign, leaveCampaign, kickPlayer } =
     useCampaignStore();
-  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages, setSelectedTokenId, combatMode } = useGameStore();
+  const { selectedTokenId, onlinePlayers, setFogData, diceHistory, chatMessages, setSelectedTokenId, combatMode, combatTracker } = useGameStore();
   const socket = useSocket(id);
 
   const [activeTab, setActiveTab] = useState<Tab>('map');
@@ -542,7 +542,23 @@ export default function CampaignPage() {
                   ✕
                 </button>
               </div>
-              <CharacterList characters={characters} onSelect={(c) => setSelectedCharacterId(c.id)} />
+              <CharacterList
+                characters={characters}
+                onSelect={(c) => setSelectedCharacterId(c.id)}
+                onCreate={async () => {
+                  await createCharacter({
+                    campaignId: id!,
+                    name: 'New Character',
+                    class: 'Fighter',
+                    race: 'Human',
+                    stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+                    hpMax: 10,
+                    ac: 10,
+                  } as any);
+                  // Re-fetch characters to get the new one with server-generated ID
+                  await fetchCharacters(id!);
+                }}
+              />
             </div>
 
             {/* Character Detail */}
@@ -628,6 +644,7 @@ export default function CampaignPage() {
               map={currentMap}
               tokens={tokens}
               isDM={isDM}
+              userId={user?.id}
               socket={socket}
               selectedTokenId={selectedTokenId}
             />
@@ -650,7 +667,7 @@ export default function CampaignPage() {
             <LoadingSkeleton lines={4} />
           )}
           {activeTab === 'combat' && (
-            <CombatTracker isDM={isDM} socket={socket} campaignId={id!} tokens={tokens} />
+            <CombatTracker isDM={isDM} userId={user?.id} socket={socket} campaignId={id!} tokens={tokens} />
           )}
           {activeTab === 'dice' && (
             <DiceRoller socket={socket} campaignId={id!} />
@@ -661,7 +678,7 @@ export default function CampaignPage() {
         </div>
 
         {/* Token Sidebar */}
-        {selectedTokenId && !combatMode && (
+        {selectedTokenId && !combatTracker && (
           <div className="w-72 bg-dnd-surface/80 border-l border-dnd-accent/50 overflow-y-auto shrink-0 hidden sm:block">
             <div className="flex items-center justify-between px-4 py-2 border-b border-dnd-accent/50">
               <span className="text-sm font-semibold">Token Details</span>
@@ -685,9 +702,9 @@ export default function CampaignPage() {
         )}
 
         {/* Combat Sidebar */}
-        {combatMode && activeTab === 'map' && (
+        {combatTracker != null && activeTab === 'map' && (
           <div className="w-72 bg-dnd-surface/80 border-l border-dnd-accent/50 overflow-y-auto shrink-0 hidden sm:block">
-            <CombatTracker isDM={isDM} socket={socket} campaignId={id!} tokens={tokens} />
+            <CombatTracker isDM={isDM} userId={user?.id} socket={socket} campaignId={id!} tokens={tokens} />
           </div>
         )}
       </div>

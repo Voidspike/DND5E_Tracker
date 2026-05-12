@@ -64,11 +64,18 @@ router.get('/map/:mapId', authenticate, async (req: Request, res: Response) => {
 router.post('/', authenticate, async (req: Request, res: Response) => {
   try {
     const data = createSchema.parse(req.body);
-    const map = await prisma.map.findUnique({ where: { id: data.mapId } });
+    const map = await prisma.map.findUnique({
+      where: { id: data.mapId },
+      include: { campaign: true },
+    });
     if (!map) {
       res.status(404).json({ error: 'Map not found' });
       return;
     }
+
+    // Non-DM players can only create tokens they own
+    const isDM = map.campaign.dmId === req.user!.userId;
+    const ownerId = isDM ? (data.ownerId || null) : req.user!.userId;
 
     const token = await prisma.token.create({
       data: {
@@ -78,7 +85,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
         name: data.name,
         x: data.x,
         y: data.y,
-        ownerId: data.ownerId || null,
+        ownerId,
         imageUrl: data.imageUrl || null,
         color: data.color,
         hpCurrent: data.hpCurrent || null,
@@ -98,12 +105,29 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Check if user can modify a token (DM of campaign or token owner)
+async function canModifyToken(tokenId: string, userId: string): Promise<boolean> {
+  const token = await prisma.token.findUnique({
+    where: { id: tokenId },
+    include: { map: { include: { campaign: true } } },
+  });
+  if (!token) return false;
+  if (token.ownerId === userId) return true;
+  if (token.map.campaign.dmId === userId) return true;
+  return false;
+}
+
 // Update token
 router.patch('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const token = await prisma.token.findUnique({ where: { id: req.params.id } });
     if (!token) {
       res.status(404).json({ error: 'Token not found' });
+      return;
+    }
+
+    if (!(await canModifyToken(req.params.id, req.user!.userId))) {
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
 
@@ -132,6 +156,12 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
     res.status(404).json({ error: 'Token not found' });
     return;
   }
+
+  if (!(await canModifyToken(req.params.id, req.user!.userId))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
   await prisma.token.delete({ where: { id: req.params.id } });
   res.status(204).send();
 });

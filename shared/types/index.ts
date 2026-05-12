@@ -266,11 +266,15 @@ export interface CombatTracker {
   id: string;
   campaignId: string;
   mapId: string | null;
+  name: string | null;
+  status: string;
   isActive: boolean;
   round: number;
   currentTurnIndex: number;
   participants: CombatParticipant[];
   log: CombatLogEntry[] | null;
+  startedAt: string | null;
+  endedAt: string | null;
   createdAt: string;
 }
 

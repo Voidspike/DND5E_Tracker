@@ -273,7 +273,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
             </button>
           )}
 
-          {isDM && (
+          {canEdit && (
             <button
               onClick={async () => {
                 if (confirm('Delete this token?')) {

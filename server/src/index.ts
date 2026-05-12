@@ -9,6 +9,7 @@ import campaignRoutes from './routes/campaign';
 import mapRoutes from './routes/map';
 import tokenRoutes from './routes/token';
 import characterRoutes from './routes/character';
+import combatRoutes from './routes/combat';
 import uploadRoutes from './routes/upload';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/maps', mapRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/characters', characterRoutes);
+app.use('/api/combat', combatRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // Health check

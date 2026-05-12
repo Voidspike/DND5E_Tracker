@@ -67,7 +67,8 @@ model Map {
   fogData       Json?
   createdAt     DateTime @default(now())
 
-  tokens Token[]
+  tokens          Token[]
+  combatTrackers  CombatTracker[]
 }
 
 model Token {
@@ -153,10 +154,15 @@ model CombatTracker {
   campaignId       String
   campaign         Campaign @relation(fields: [campaignId], references: [id])
   mapId            String?
+  map              Map?     @relation(fields: [mapId], references: [id])
+  name             String?
+  status           String   @default("setup")
   isActive         Boolean  @default(true)
   round            Int      @default(1)
   currentTurnIndex Int      @default(0)
   log              Json?    @default("[]")
+  startedAt        DateTime?
+  endedAt          DateTime?
   createdAt        DateTime @default(now())
 
   participants CombatParticipant[]

@@ -93,6 +93,12 @@ export const tokenApi = {
   delete: (id: string): Promise<void> => request<void>(`/tokens/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Combat ───
+export const combatApi = {
+  getActive: (mapId: string): Promise<any> => request<any>(`/combat/map/${mapId}/active`),
+  getHistory: (mapId: string): Promise<any[]> => request<any[]>(`/combat/map/${mapId}/history`),
+};
+
 // ─── Characters ───
 export const characterApi = {
   listByCampaign: (campaignId: string): Promise<Character[]> =>
