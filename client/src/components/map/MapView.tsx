@@ -22,7 +22,7 @@ interface MapViewProps {
 
 export default function MapView({ map, tokens, isDM, userId, socket, selectedTokenId }: MapViewProps) {
   const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters, updateCharacter } = useCampaignStore();
-  const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement, highlightedTokenId, setHighlightedTokenId } = useGameStore();
+  const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement, highlightedTokenId, setHighlightedTokenId, combatTargetTokenId, setCombatTargetTokenId } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const visionCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -568,8 +568,23 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
   const handleTokenMouseDown = (e: React.MouseEvent, token: any) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+
+    // In active combat mode: clicking a participant sets it as target
+    if (isDM && combatTracker && combatTracker.status === 'active') {
+      const participant = combatTracker.participants.find((p: any) => p.tokenId === token.id);
+      if (participant) {
+        if (participant.isActiveTurn) {
+          setCombatTargetTokenId(null);
+        } else {
+          setCombatTargetTokenId(token.id);
+        }
+        setSelectedTokenId(token.id);
+        socket.emit('token:select', token.id);
+        return;
+      }
+    }
+
     if (!isDM && token.ownerId !== userId) {
-      // Player selecting a token they don't own — just select, don't drag
       setSelectedTokenId(token.id);
       socket.emit('token:select', token.id);
       return;
@@ -763,9 +778,11 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
                     minHeight: 24,
                     boxShadow: token.id === activeTurnTokenId
                       ? '0 0 0 3px rgba(255, 193, 7, 0.85), 0 0 16px rgba(255, 193, 7, 0.5)'
-                      : token.id === highlightedTokenId
-                        ? '0 0 0 3px rgba(0, 188, 212, 0.85), 0 0 16px rgba(0, 188, 212, 0.5)'
-                        : undefined,
+                      : token.id === combatTargetTokenId
+                        ? '0 0 0 3px rgba(255, 152, 0, 0.85), 0 0 16px rgba(255, 152, 0, 0.5)'
+                        : token.id === highlightedTokenId
+                          ? '0 0 0 3px rgba(0, 188, 212, 0.85), 0 0 16px rgba(0, 188, 212, 0.5)'
+                          : undefined,
                   }}
                   onMouseDown={(e) => {
                     if (!canEditToken(token, userId, isDM)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }

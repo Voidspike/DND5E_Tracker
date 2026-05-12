@@ -3,6 +3,8 @@ import { Socket } from 'socket.io-client';
 import { useGameStore } from '../../stores/gameStore';
 import { useCampaignStore } from '../../stores/campaignStore';
 import { canEditToken } from '../../utils/token';
+import SpellSelector from '../spell/SpellSelector';
+import type { SpellData } from '../spell/SpellTooltip';
 
 interface CombatTrackerProps {
   isDM: boolean;
@@ -25,14 +27,15 @@ const COMBAT_ACTIONS: { key: string; label: string; color: string }[] = [
 ];
 
 export default function CombatTracker({ isDM, userId, socket, campaignId, tokens }: CombatTrackerProps) {
-  const { combatTracker, combatLog, tokenMovementUsed, resetTokenMovement, setHighlightedTokenId, setCombatMode } = useGameStore();
-  const { updateToken, updateCharacter } = useCampaignStore();
+  const { combatTracker, combatLog, tokenMovementUsed, resetTokenMovement, setHighlightedTokenId, setCombatMode, combatTargetTokenId, setCombatTargetTokenId } = useGameStore();
+  const { updateToken, updateCharacter, characters } = useCampaignStore();
   const [editingInitId, setEditingInitId] = useState<string | null>(null);
   const [editInitValue, setEditInitValue] = useState('');
   const [hpDeltas, setHpDeltas] = useState<Record<string, number>>({});
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [showEndDialog, setShowEndDialog] = useState(false);
+  const [showSpellSelector, setShowSpellSelector] = useState(false);
 
   const participants = combatTracker?.participants || [];
   const status = combatTracker?.status || 'setup';
@@ -97,14 +100,30 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
 
   const handleAction = (actionKey: string) => {
     if (!combatTracker || !activeParticipant || !activeToken) return;
+
+    // Spell action opens selector if character has spells
+    if (actionKey === 'spell' && activeToken.characterId) {
+      const char = characters.find((c: any) => c.id === activeToken.characterId);
+      if (char) {
+        setShowSpellSelector(true);
+        return;
+      }
+    }
+
+    emitAction(actionKey);
+  };
+
+  const emitAction = (actionKey: string, spellName?: string) => {
+    if (!combatTracker || !activeParticipant || !activeToken) return;
     const hpDelta = hpDeltas[activeToken.id] || 0;
     const note = hpDelta !== 0 ? `HP ${hpDelta > 0 ? '+' : ''}${hpDelta}` : undefined;
+    const actionLabel = spellName ? `✨ ${spellName}` : undefined;
     socket.emit('combat:action', {
       combatId: combatTracker.id,
       tokenId: activeToken.id,
       action: actionKey,
       value: hpDelta !== 0 ? hpDelta : undefined,
-      note,
+      note: actionLabel || note,
     });
     if (hpDelta !== 0) {
       const newHp = Math.max(0, (activeToken.hpCurrent || 0) + hpDelta);
@@ -118,6 +137,11 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
       }
       setHpDeltas(prev => ({ ...prev, [activeToken.id]: 0 }));
     }
+  };
+
+  const handleSpellSelect = (spell: SpellData) => {
+    setShowSpellSelector(false);
+    emitAction('spell', `${spell.cn} (${spell.level === 0 ? '戏法' : `${spell.level}环`})`);
   };
 
   const setHpDelta = (tokenId: string, val: number) => {
@@ -256,12 +280,27 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
         {sortedParticipants.map((p: any, index: number) => {
           const ptoken = tokens.find((t: any) => t.id === p.tokenId);
           const isTurnActive = p.isActiveTurn && isActive;
+          const isTargeted = combatTargetTokenId === p.tokenId && !isTurnActive;
           return (
             <div
               key={p.id}
-              onClick={() => setHighlightedTokenId(p.tokenId)}
+              onClick={() => {
+                setHighlightedTokenId(p.tokenId);
+                if (isDM && isActive) {
+                  // Toggle target: clicking same target clears it, clicking active turn also clears
+                  if (isTurnActive) {
+                    setCombatTargetTokenId(null);
+                  } else if (combatTargetTokenId === p.tokenId) {
+                    setCombatTargetTokenId(null);
+                  } else {
+                    setCombatTargetTokenId(p.tokenId);
+                  }
+                }
+              }}
               className={`flex items-center justify-between px-3 py-1.5 rounded text-sm cursor-pointer ${
-                isTurnActive ? 'bg-dnd-primary/20 border border-dnd-primary' : 'bg-dnd-bg border border-dnd-accent/20 hover:border-dnd-accent/50'
+                isTurnActive ? 'bg-dnd-primary/20 border border-dnd-primary' :
+                isTargeted ? 'bg-orange-500/15 border border-orange-500/50' :
+                'bg-dnd-bg border border-dnd-accent/20 hover:border-dnd-accent/50'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -300,6 +339,87 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
         })}
       </div>
 
+      {/* ── Target Token Panel (DM only, active mode) ── */}
+      {isDM && isActive && combatTargetTokenId && (() => {
+        const targetToken = tokens.find((t: any) => t.id === combatTargetTokenId);
+        const targetParticipant = participants.find((p: any) => p.tokenId === combatTargetTokenId);
+        if (!targetToken) return null;
+        return (
+          <div className="bg-orange-500/10 border border-orange-500/40 rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm text-orange-300">
+                🎯 {targetParticipant?.label || targetToken.name}
+              </span>
+              <button
+                onClick={() => setCombatTargetTokenId(null)}
+                className="text-dnd-muted hover:text-dnd-text text-xs"
+              >✕</button>
+            </div>
+            {targetToken.hpMax && (
+              <>
+                <div className="flex items-center gap-2 text-xs text-dnd-muted">
+                  <span>HP: {targetToken.hpCurrent ?? '?'}/{targetToken.hpMax}</span>
+                  {targetToken.ac && <span>AC: {targetToken.ac}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const newHp = Math.max(0, (targetToken.hpCurrent || 0) - 5);
+                      updateToken(targetToken.id, { hpCurrent: newHp });
+                      socket.emit('token:update', { campaignId, tokenId: targetToken.id, updates: { hpCurrent: newHp } });
+                      if (targetToken.characterId) {
+                        updateCharacter(targetToken.characterId, { hpCurrent: newHp } as any)
+                          .then((u) => { if (u) socket.emit('character:update', { characterId: targetToken.characterId, updates: { hpCurrent: newHp } }); })
+                          .catch(console.error);
+                      }
+                    }}
+                    className="bg-dnd-danger/20 text-dnd-danger px-3 py-1 rounded text-xs hover:bg-dnd-danger/30"
+                  >-5 HP</button>
+                  <button
+                    onClick={() => {
+                      const newHp = Math.max(0, targetToken.hpCurrent || 0);
+                      updateToken(targetToken.id, { hpCurrent: newHp });
+                      // Fine-tune: click to edit directly
+                      const input = prompt('HP:', String(targetToken.hpCurrent));
+                      if (input !== null) {
+                        const val = parseInt(input, 10);
+                        if (!isNaN(val)) {
+                          const finalHp = Math.max(0, val);
+                          updateToken(targetToken.id, { hpCurrent: finalHp });
+                          socket.emit('token:update', { campaignId, tokenId: targetToken.id, updates: { hpCurrent: finalHp } });
+                          if (targetToken.characterId) {
+                            updateCharacter(targetToken.characterId, { hpCurrent: finalHp } as any)
+                              .then((u) => { if (u) socket.emit('character:update', { characterId: targetToken.characterId, updates: { hpCurrent: finalHp } }); })
+                              .catch(console.error);
+                          }
+                        }
+                      }
+                    }}
+                    className="bg-dnd-accent/20 text-dnd-accent px-3 py-1 rounded text-xs hover:bg-dnd-accent/30"
+                  >编辑</button>
+                  <button
+                    onClick={() => {
+                      const newHp = Math.min(targetToken.hpMax, (targetToken.hpCurrent || 0) + 5);
+                      updateToken(targetToken.id, { hpCurrent: newHp });
+                      socket.emit('token:update', { campaignId, tokenId: targetToken.id, updates: { hpCurrent: newHp } });
+                      if (targetToken.characterId) {
+                        updateCharacter(targetToken.characterId, { hpCurrent: newHp } as any)
+                          .then((u) => { if (u) socket.emit('character:update', { characterId: targetToken.characterId, updates: { hpCurrent: newHp } }); })
+                          .catch(console.error);
+                      }
+                    }}
+                    className="bg-dnd-success/20 text-dnd-success px-3 py-1 rounded text-xs hover:bg-dnd-success/30"
+                  >+5 HP</button>
+                </div>
+              </>
+            )}
+            <p className="text-[10px] text-dnd-muted">
+              点击正在进行回合的棋子回到正常流程，或点击 Next 进入下个回合
+            </p>
+          </div>
+        );
+      })()}
+
       {/* ── Combat Log ── */}
       <div>
         <h3 className="text-xs font-semibold text-dnd-muted mb-2">战斗日志</h3>
@@ -316,6 +436,15 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
           )}
         </div>
       </div>
+
+      {/* ── Spell Selector ── */}
+      {showSpellSelector && activeToken?.characterId && (
+        <SpellSelector
+          character={characters.find((c: any) => c.id === activeToken.characterId)}
+          onSelect={handleSpellSelect}
+          onClose={() => setShowSpellSelector(false)}
+        />
+      )}
 
       {/* ── End Combat Dialog ── */}
       {showEndDialog && (

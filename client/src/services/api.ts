@@ -93,6 +93,17 @@ export const tokenApi = {
   delete: (id: string): Promise<void> => request<void>(`/tokens/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Spells ───
+export const spellApi = {
+  search: (params: { class?: string; level?: number; search?: string }): Promise<any[]> => {
+    const qs = new URLSearchParams();
+    if (params.class) qs.set('class', params.class);
+    if (params.level !== undefined) qs.set('level', String(params.level));
+    if (params.search) qs.set('search', params.search);
+    return request<any[]>(`/spells?${qs.toString()}`);
+  },
+};
+
 // ─── Combat ───
 export const combatApi = {
   getActive: (mapId: string): Promise<any> => request<any>(`/combat/map/${mapId}/active`),

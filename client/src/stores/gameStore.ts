@@ -45,6 +45,7 @@ interface GameState {
   combatMode: boolean;
   tokenMovementUsed: Record<string, number>;
   highlightedTokenId: string | null;
+  combatTargetTokenId: string | null;
 
   setOnlinePlayers: (players: OnlinePlayer[]) => void;
   setSelectedTokenId: (id: string | null) => void;
@@ -60,6 +61,7 @@ interface GameState {
   setTokenMovementUsed: (tokenId: string, distance: number) => void;
   resetTokenMovement: () => void;
   setHighlightedTokenId: (id: string | null) => void;
+  setCombatTargetTokenId: (id: string | null) => void;
   reset: () => void;
 }
 
@@ -81,17 +83,21 @@ export const useGameStore = create<GameState>((set) => ({
   combatMode: false,
   tokenMovementUsed: {},
   highlightedTokenId: null,
+  combatTargetTokenId: null,
 
   setOnlinePlayers: (players) => set({ onlinePlayers: players }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
   setCombatTracker: (tracker) => set((s) => {
     const resolved = typeof tracker === 'function' ? (tracker as any)(s.combatTracker) : tracker;
-    return { combatTracker: resolved, combatLog: resolved?.log || [], tokenMovementUsed: resolved ? s.tokenMovementUsed : {} };
+    const log = resolved?.log;
+    const safeLog = Array.isArray(log) ? log : (typeof log === 'string' ? (() => { try { const p = JSON.parse(log); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+    return { combatTracker: resolved, combatLog: safeLog, tokenMovementUsed: resolved ? s.tokenMovementUsed : {} };
   }),
   setCombatMode: (active) => set({ combatMode: active }),
   setTokenMovementUsed: (tokenId, distance) => set((s) => ({ tokenMovementUsed: { ...s.tokenMovementUsed, [tokenId]: distance } })),
   resetTokenMovement: () => set({ tokenMovementUsed: {} }),
   setHighlightedTokenId: (id) => set({ highlightedTokenId: id }),
+  setCombatTargetTokenId: (id) => set({ combatTargetTokenId: id }),
   addCombatParticipant: (participant) =>
     set((s) => {
       if (!s.combatTracker) return s;
@@ -142,5 +148,6 @@ export const useGameStore = create<GameState>((set) => ({
       combatMode: false,
       tokenMovementUsed: {},
       highlightedTokenId: null,
+      combatTargetTokenId: null,
     }),
 }));

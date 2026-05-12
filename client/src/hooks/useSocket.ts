@@ -22,6 +22,7 @@ export function useSocket(campaignId?: string) {
   const syncCharacter = useCampaignStore((s) => s.syncCharacter);
   const setSelectedTokenId = useGameStore((s) => s.setSelectedTokenId);
   const setCombatMode = useGameStore((s) => s.setCombatMode);
+  const setCombatTargetTokenId = useGameStore((s) => s.setCombatTargetTokenId);
 
   useEffect(() => {
     if (!token || !campaignId) return;
@@ -36,7 +37,7 @@ export function useSocket(campaignId?: string) {
     socket.on('combat:start', (combat: any) => { setCombatTracker(combat); setCombatMode(true); });
     socket.on('combat:next_turn', (combat: any) => setCombatTracker(combat));
     socket.on('combat:prev_turn', (combat: any) => setCombatTracker(combat));
-    socket.on('combat:end', () => { setCombatTracker(null); setCombatMode(false); });
+    socket.on('combat:end', () => { setCombatTracker(null); setCombatMode(false); setCombatTargetTokenId(null); });
     socket.on('combat:update_name', (data: { combatId: string; name: string }) => {
       setCombatTracker((prev: any) => prev ? { ...prev, name: data.name } : null);
     });

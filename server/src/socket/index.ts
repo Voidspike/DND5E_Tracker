@@ -289,7 +289,7 @@ export function setupSocket(httpServer: HTTPServer): Server {
           startedAt: new Date(),
           round: 1,
           currentTurnIndex: 0,
-          log: JSON.stringify([]),
+          log: [],
         },
         include: { participants: true },
       });

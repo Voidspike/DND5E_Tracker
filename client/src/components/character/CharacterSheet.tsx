@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useCampaignStore } from '../../stores/campaignStore';
 import type { Character, CharacterStats } from '@dnd/shared';
 import { SPELLS } from '../../data/spells';
+import SpellTooltip from '../spell/SpellTooltip';
 
 function safeArray<T>(v: unknown, fallback: T[] = []): T[] {
   if (Array.isArray(v)) return v as T[];
@@ -623,6 +624,7 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
           <SpellsPanel
             character={character}
             isOwner={isOwner}
+            isDM={isDM}
             editing={editing}
             stats={stats}
             profBonus={profBonus}
@@ -732,7 +734,9 @@ const SPELL_LEVEL_ORDER = ['Cantrip', 'Lv1', 'Lv2', 'Lv3', 'Lv4', 'Lv5', 'Lv6', 
 
 function getSpellcastingInfo(classValue: string): { ability: string | null; statKey: string | null } {
   const ability = CLASS_SPELLCASTING_ABILITY[classValue] ?? null;
-  const statKey = ability ? (STAT_FULL as Record<string, string>)[Object.keys(STAT_FULL).find(k => (STAT_FULL as Record<string, string>)[k] === ability) || ''] || null : null;
+  const statKey = ability
+    ? Object.keys(STAT_FULL).find(k => (STAT_FULL as Record<string, string>)[k] === ability) || null
+    : null;
   return { ability, statKey };
 }
 
@@ -751,9 +755,10 @@ function parseSpells(raw: unknown): { learned: Record<string, string[]>; prepare
   return { learned, prepared: effectivePrepared };
 }
 
-function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw, spellSlotsRaw, update }: {
+function SpellsPanel({ character, isOwner, isDM, editing, stats, profBonus, spellsRaw, spellSlotsRaw, update }: {
   character: Character;
   isOwner: boolean;
+  isDM: boolean;
   editing: boolean;
   stats: CharacterStats;
   profBonus: number;
@@ -787,6 +792,25 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
     const s = SPELLS.find(x => x.cn === name);
     return s && s.level > 0;
   }).length;
+
+  // Spells known limit: for known casters, limit by class + level
+  const maxSpellsKnown = (() => {
+    const lv = character.level || 1;
+    switch (character.class) {
+      case 'Bard': return Math.min(22, lv + 1 + (lv >= 2 ? 1 : 0));
+      case 'Sorcerer': return Math.min(15, lv + 1);
+      case 'Warlock': return Math.min(15, lv + 1);
+      case 'Ranger': return Math.min(11, Math.floor(lv / 2) + 1);
+      case 'Fighter': return Math.min(13, Math.floor(lv / 3) + 1); // Eldritch Knight
+      case 'Rogue': return Math.min(13, Math.floor(lv / 3) + 1); // Arcane Trickster
+      default: return 999; // Prepared casters — no limit on spells learned
+    }
+  })();
+  const totalLearnedNonCantrip = Object.entries(learned).reduce((sum, [lvl, spells]) => {
+    if (lvl === 'Cantrip') return sum;
+    return sum + (spells as string[]).length;
+  }, 0);
+  const atLearnedLimit = !isPreparedCaster && totalLearnedNonCantrip >= maxSpellsKnown;
 
   const hasSpellsOrSlots = Object.keys(learned).length > 0 || Object.keys(spellSlots).length > 0;
 
@@ -823,6 +847,10 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
   }, [spellFilter, spellLevelFilter, classCnName]);
 
   const addSpell = async (spellCn: string, spellLevel: number) => {
+    // Check learned limit (non-cantrips only for known casters)
+    if (!isPreparedCaster && spellLevel > 0 && totalLearnedNonCantrip >= maxSpellsKnown) {
+      return; // At limit — user must remove a spell first
+    }
     const levelName = spellLevel === 0 ? 'Cantrip' : `Lv${spellLevel}`;
     const newLearned = { ...learned };
     if (!newLearned[levelName]) newLearned[levelName] = [];
@@ -850,6 +878,8 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
     await syncAndUpdate({ spells: spellsData } as any);
   };
 
+  const canEditSpells = isOwner || isDM;
+
   const togglePrepared = async (spellName: string) => {
     if (!isPreparedCaster) return;
     const isCurrentlyPrepared = preparedSpells.includes(spellName);
@@ -862,7 +892,12 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
     if (isCurrentlyPrepared) {
       newPrepared = preparedSpells.filter(s => s !== spellName);
     } else {
-      if (preparedCount >= maxPrepared) return; // at limit
+      // Count non-cantrip prepared spells in the NEW array
+      const newCount = [...preparedSpells, spellName].filter(name => {
+        const s = SPELLS.find(x => x.cn === name);
+        return s && s.level > 0;
+      }).length;
+      if (newCount > maxPrepared) return; // at limit
       newPrepared = [...preparedSpells, spellName];
     }
     const spellsData = { ...learned, [PREPARED_KEY]: newPrepared };
@@ -945,6 +980,11 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
       {isOwner && editing && hasSpellcasting && (
         <div className="bg-dnd-bg rounded-lg p-3 relative">
           <h3 className="text-xs font-semibold text-dnd-muted mb-2">搜索法术 — {classCnName}</h3>
+          {atLearnedLimit && (
+            <p className="text-xs text-dnd-danger/80 mb-2">
+              已达学会上限 ({totalLearnedNonCantrip}/{maxSpellsKnown})，请先移除一个已学会的法术再添加。
+            </p>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
@@ -975,9 +1015,11 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
                   <button
                     key={i}
                     onClick={() => addSpell(s.cn, s.level)}
-                    disabled={alreadyKnown}
+                    disabled={alreadyKnown || (atLearnedLimit && s.level > 0)}
                     className={`w-full text-left px-3 py-2 text-sm border-b border-dnd-accent/10 last:border-0 ${
-                      alreadyKnown ? 'bg-dnd-primary/10 text-dnd-muted cursor-not-allowed' : 'hover:bg-dnd-primary/10 text-dnd-text'
+                      alreadyKnown ? 'bg-dnd-primary/10 text-dnd-muted cursor-not-allowed' :
+                      (atLearnedLimit && s.level > 0) ? 'bg-dnd-danger/5 text-dnd-muted cursor-not-allowed' :
+                      'hover:bg-dnd-primary/10 text-dnd-text'
                     }`}
                   >
                     <span className="font-medium">{s.cn}</span>
@@ -1004,13 +1046,20 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold text-dnd-muted">
-              {editing ? '已学会法术' : '已准备法术'}
+              已学会法术
             </h3>
-            {isPreparedCaster && editing && (
-              <span className={`text-xs ${preparedCount > maxPrepared ? 'text-dnd-danger' : 'text-dnd-muted'}`}>
-                已准备: {preparedCount}/{maxPrepared}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {!isPreparedCaster && (
+                <span className={`text-xs ${atLearnedLimit ? 'text-dnd-danger' : 'text-dnd-muted'}`}>
+                  已学: {totalLearnedNonCantrip}/{maxSpellsKnown}
+                </span>
+              )}
+              {isPreparedCaster && (
+                <span className={`text-xs ${preparedCount > maxPrepared ? 'text-dnd-danger' : 'text-dnd-muted'}`}>
+                  已准备: {preparedCount}/{maxPrepared}
+                </span>
+              )}
+            </div>
           </div>
           {SPELL_LEVEL_ORDER.map(level => {
             const list = learned[level];
@@ -1023,33 +1072,35 @@ function SpellsPanel({ character, isOwner, editing, stats, profBonus, spellsRaw,
                     const spellData = SPELLS.find(s => s.cn === name);
                     const isPrepared = preparedSpells.includes(name);
                     const isCantrip = spellData && spellData.level === 0;
-                    const canTogglePrep = isPreparedCaster && editing && !isCantrip;
+                    const canTogglePrep = isPreparedCaster && canEditSpells && !isCantrip;
                     const atPrepLimit = isPreparedCaster && !isPrepared && preparedCount >= maxPrepared;
                     return (
                       <span
                         key={i}
+                        onClick={() => {
+                          if (canTogglePrep && !atPrepLimit) togglePrepared(name);
+                        }}
                         className={`text-xs border rounded px-2 py-1 flex items-center gap-1 group ${
                           isPrepared
-                            ? 'bg-dnd-primary/10 border-dnd-primary/40 text-dnd-text'
-                            : 'bg-dnd-surface border-dnd-accent/20 text-dnd-muted'
+                            ? 'bg-pink-500/20 border-pink-500/40 text-dnd-text cursor-pointer hover:bg-pink-500/30'
+                            : canTogglePrep && !atPrepLimit
+                              ? 'bg-dnd-surface border-dnd-accent/30 text-dnd-muted cursor-pointer hover:bg-dnd-accent/20'
+                              : 'bg-dnd-surface border-dnd-accent/20 text-dnd-muted'
                         }`}
+                        title={canTogglePrep ? (isPrepared ? '点击取消准备' : atPrepLimit ? '已达准备上限，需先取消其他法术' : '点击准备') : undefined}
                       >
                         {canTogglePrep && (
-                          <button
-                            onClick={() => togglePrepared(name)}
-                            className="text-[10px] hover:text-dnd-primary leading-none"
-                            title={isPrepared ? '取消准备' : '准备'}
-                          >
+                          <span className={`text-[10px] leading-none ${isPrepared ? 'text-pink-400' : 'text-dnd-muted'}`}>
                             {isPrepared ? '●' : '○'}
-                          </button>
+                          </span>
                         )}
-                        <span className="font-medium">{name}</span>
+                        <span className="font-medium">
+                          {spellData ? <SpellTooltip spell={spellData}>{name}</SpellTooltip> : name}
+                        </span>
                         {spellData && <span className="text-dnd-muted hidden sm:inline">{spellData.level === 0 ? '戏法' : `${spellData.level}环`}</span>}
-                        {!isPrepared && !editing && <span className="text-[10px] text-dnd-muted">(未准备)</span>}
-                        {atPrepLimit && <span className="text-[10px] text-dnd-muted">(已达上限)</span>}
-                        {isOwner && editing && (
+                        {canEditSpells && editing && (
                           <button
-                            onClick={() => removeSpell(level, name)}
+                            onClick={(e) => { e.stopPropagation(); removeSpell(level, name); }}
                             className="text-dnd-muted hover:text-dnd-danger ml-1 leading-none"
                             title="忘记法术"
                           >×</button>

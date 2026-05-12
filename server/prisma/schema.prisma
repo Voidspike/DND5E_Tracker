@@ -194,6 +194,21 @@ model DiceRoll {
   rolledAt   DateTime @default(now())
 }
 
+model Spell {
+  id         String @id @default(uuid())
+  en         String @unique
+  cn         String
+  source     String
+  classes    String
+  level      Int
+  school     String
+  castTime   String
+  range      String
+  components String
+  duration   String
+  desc       String
+}
+
 model ChatMessage {
   id         String   @id @default(uuid())
   campaignId String
