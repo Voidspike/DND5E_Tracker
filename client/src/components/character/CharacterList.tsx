@@ -1,4 +1,5 @@
 import { useAuthStore } from '../../stores/authStore';
+import { useCampaignStore } from '../../stores/campaignStore';
 
 interface CharacterListProps {
   characters: any[];
@@ -8,6 +9,8 @@ interface CharacterListProps {
 
 export default function CharacterList({ characters, onSelect, onCreate }: CharacterListProps) {
   const { user } = useAuthStore();
+  const { currentCampaign, deleteCharacter } = useCampaignStore();
+  const isDM = currentCampaign?.dmId === user?.id;
 
   return (
     <div className="p-4 space-y-2 overflow-y-auto h-full">
@@ -32,33 +35,49 @@ export default function CharacterList({ characters, onSelect, onCreate }: Charac
           <p className="text-sm">No characters in this campaign yet.</p>
         </div>
       )}
-      {characters.map((char) => (
-        <button
+      {characters.map((char) => {
+        const canDeleteChar = isDM || char.userId === user?.id;
+        return (
+        <div
           key={char.id}
-          onClick={() => onSelect(char)}
-          className="w-full bg-dnd-bg hover:bg-dnd-accent/20 border border-dnd-accent/30 hover:border-dnd-primary rounded-lg p-3 text-left transition-colors"
+          className="w-full bg-dnd-bg border border-dnd-accent/30 rounded-lg p-3 text-left transition-colors group relative"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="font-medium block">{char.name}</span>
-              <span className="text-xs text-dnd-muted">
-                Lv{char.level} {char.race} {char.class}
-              </span>
+          <button onClick={() => onSelect(char)} className="w-full text-left hover:bg-dnd-accent/20 -m-3 p-3 rounded-lg transition-colors">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium block">{char.name}</span>
+                <span className="text-xs text-dnd-muted">
+                  Lv{char.level} {char.race} {char.class}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-dnd-muted block">
+                  HP {char.hpCurrent}/{char.hpMax}
+                </span>
+                <span className="text-xs text-dnd-accent">AC {char.ac}</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-dnd-muted block">
-                HP {char.hpCurrent}/{char.hpMax}
+            {char.userId === user?.id && (
+              <span className="text-[10px] bg-dnd-primary/20 text-dnd-primary px-1.5 py-0.5 rounded mt-1 inline-block">
+                Your Character
               </span>
-              <span className="text-xs text-dnd-accent">AC {char.ac}</span>
-            </div>
-          </div>
-          {char.userId === user?.id && (
-            <span className="text-[10px] bg-dnd-primary/20 text-dnd-primary px-1.5 py-0.5 rounded mt-1 inline-block">
-              Your Character
-            </span>
+            )}
+          </button>
+          {canDeleteChar && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm(`删除角色 "${char.name}"？此操作不可撤销。`)) {
+                  deleteCharacter(char.id);
+                }
+              }}
+              className="absolute top-2 right-2 text-dnd-muted hover:text-dnd-danger text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              title="删除角色"
+            >✕</button>
           )}
-        </button>
-      ))}
+        </div>
+        );
+      })}
     </div>
   );
 }

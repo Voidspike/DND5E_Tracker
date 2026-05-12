@@ -108,4 +108,5 @@ export const characterApi = {
     request<Character>('/characters', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Character>): Promise<Character> =>
     request<Character>(`/characters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string): Promise<void> => request<void>(`/characters/${id}`, { method: 'DELETE' }),
 };

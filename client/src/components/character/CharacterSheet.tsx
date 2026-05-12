@@ -116,13 +116,15 @@ type CharTab = 'info' | 'stats' | 'combat' | 'skills' | 'spells' | 'equip';
 
 export default function CharacterSheet({ character, onClose, socket, campaignId }: CharacterSheetProps) {
   const { user } = useAuthStore();
-  const { updateCharacter, updateToken, tokens: allTokens } = useCampaignStore();
+  const { updateCharacter, updateToken, deleteCharacter, tokens: allTokens, currentCampaign } = useCampaignStore();
   const [tab, setTab] = useState<CharTab>('info');
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOwner = character.userId === user?.id;
+  const isDM = currentCampaign?.dmId === user?.id;
+  const canDelete = isOwner || isDM;
   const stats = safeObj<CharacterStats>(character.stats, { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 });
   const profBonus = character.proficiency || 2;
   const saveProfs = safeArray<string>(character.statSaveProficiencies);
@@ -254,6 +256,19 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
               className={`px-3 py-1 rounded text-sm ${editing ? 'bg-dnd-primary text-white' : 'bg-dnd-accent text-white'} hover:opacity-90`}
             >
               {editing ? '完成' : '编辑'}
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => {
+                if (confirm(`删除角色 "${character.name}"？此操作不可撤销。`)) {
+                  deleteCharacter(character.id);
+                  onClose();
+                }
+              }}
+              className="px-3 py-1 rounded text-sm bg-dnd-danger/20 text-dnd-danger hover:bg-dnd-danger/30"
+            >
+              删除
             </button>
           )}
           <button onClick={onClose} className="text-dnd-muted hover:text-dnd-text px-1.5 py-1">✕</button>

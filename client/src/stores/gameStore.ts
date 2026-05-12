@@ -48,7 +48,7 @@ interface GameState {
 
   setOnlinePlayers: (players: OnlinePlayer[]) => void;
   setSelectedTokenId: (id: string | null) => void;
-  setCombatTracker: (tracker: CombatTracker | null) => void;
+  setCombatTracker: (tracker: CombatTracker | null | ((prev: CombatTracker | null) => CombatTracker | null)) => void;
   addCombatParticipant: (participant: CombatParticipant) => void;
   removeCombatParticipant: (participantId: string) => void;
   updateCombatParticipant: (participant: CombatParticipant) => void;
@@ -84,7 +84,10 @@ export const useGameStore = create<GameState>((set) => ({
 
   setOnlinePlayers: (players) => set({ onlinePlayers: players }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
-  setCombatTracker: (tracker) => set({ combatTracker: tracker, combatLog: tracker?.log || [], tokenMovementUsed: {} }),
+  setCombatTracker: (tracker) => set((s) => {
+    const resolved = typeof tracker === 'function' ? (tracker as any)(s.combatTracker) : tracker;
+    return { combatTracker: resolved, combatLog: resolved?.log || [], tokenMovementUsed: resolved ? s.tokenMovementUsed : {} };
+  }),
   setCombatMode: (active) => set({ combatMode: active }),
   setTokenMovementUsed: (tokenId, distance) => set((s) => ({ tokenMovementUsed: { ...s.tokenMovementUsed, [tokenId]: distance } })),
   resetTokenMovement: () => set({ tokenMovementUsed: {} }),

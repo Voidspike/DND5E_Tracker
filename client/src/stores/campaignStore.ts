@@ -45,8 +45,9 @@ interface CampaignState {
   deleteToken: (id: string) => Promise<void>;
 
   fetchCharacters: (campaignId: string) => Promise<void>;
-  createCharacter: (data: CreateCharacterRequest) => Promise<void>;
+  createCharacter: (data: CreateCharacterRequest) => Promise<Character>;
   updateCharacter: (id: string, data: Partial<Character>) => Promise<Character>;
+  deleteCharacter: (id: string) => Promise<void>;
   syncCharacter: (character: any) => void;
 }
 
@@ -200,6 +201,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   createCharacter: async (data) => {
     const character = await characterApi.create(data);
     set((s) => ({ characters: [...s.characters, character] }));
+    return character;
   },
 
   updateCharacter: async (id, data) => {
@@ -208,6 +210,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
       characters: s.characters.map((c) => (c.id === id ? updated : c)),
     }));
     return updated;
+  },
+
+  deleteCharacter: async (id) => {
+    await characterApi.delete(id);
+    set((s) => ({ characters: s.characters.filter((c) => c.id !== id) }));
   },
 
   syncCharacter: (character) => {

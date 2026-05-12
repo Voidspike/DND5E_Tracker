@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 import { useCampaignStore } from '../../stores/campaignStore';
 import { useGameStore } from '../../stores/gameStore';
+import { canEditToken } from '../../utils/token';
 
 const TOKEN_TYPES = [
   { value: 'character', label: 'PC', icon: '🧙', color: '#4fc3f7' },
@@ -20,8 +21,6 @@ interface MapViewProps {
 }
 
 export default function MapView({ map, tokens, isDM, userId, socket, selectedTokenId }: MapViewProps) {
-
-  const canEditToken = (token: any) => isDM || (userId && token.ownerId === userId);
   const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters, updateCharacter } = useCampaignStore();
   const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement, highlightedTokenId, setHighlightedTokenId } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,6 +32,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
   const [panDragging, setPanDragging] = useState(false);
   const [panDragStart, setPanDragStart] = useState({ x: 0, y: 0 });
   const [isAnimating, setIsAnimating] = useState(false);
+  const [syncViewEnabled, setSyncViewEnabled] = useState(false);
   const [showGridSettings, setShowGridSettings] = useState(false);
   const [gridSize, setGridSize] = useState(map.gridSize || 50);
   const [gridOffsetX, setGridOffsetX] = useState(map.gridOffsetX || 0);
@@ -129,6 +129,30 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     socket.on('map:annotation:clear', handler);
     return () => { socket.off('map:annotation:clear', handler); };
   }, [socket]);
+
+  // Listen for DM viewport sync
+  useEffect(() => {
+    const handler = (data: { mapId: string; offset: { x: number; y: number }; scale: number }) => {
+      if (data.mapId !== map.id) return;
+      setIsAnimating(true);
+      setOffset(data.offset);
+      setScale(data.scale);
+      clearTimeout((window as any).__syncAnimTimeout);
+      (window as any).__syncAnimTimeout = setTimeout(() => setIsAnimating(false), 300);
+    };
+    socket.on('map:viewport:sync', handler);
+    return () => { socket.off('map:viewport:sync', handler); };
+  }, [socket, map.id]);
+
+  const emitViewport = useCallback(() => {
+    if (!syncViewEnabled || !isDM) return;
+    socket.emit('map:viewport:sync', {
+      campaignId: map.campaignId,
+      mapId: map.id,
+      offset,
+      scale,
+    });
+  }, [syncViewEnabled, isDM, socket, map.campaignId, map.id, offset, scale]);
 
   // Draw vision range circle for selected token
   useEffect(() => {
@@ -235,7 +259,9 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
       clearTimeout((window as any).__zoomAnimTimeout);
       (window as any).__zoomAnimTimeout = setTimeout(() => setIsAnimating(false), 150);
     }
-  }, [scale, offset.x, offset.y, panDragging]);
+    // Sync viewport to players (debounced via socket emission)
+    emitViewport();
+  }, [scale, offset.x, offset.y, panDragging, emitViewport]);
 
   const getGridCoords = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -304,6 +330,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
 
   const handleMouseUp = () => {
     setIsPainting(false);
+    const wasPanning = panDragging;
     setPanDragging(false);
     if (dragTokenId) {
       updateToken(dragTokenId, { x: dragTokenPos.x, y: dragTokenPos.y });
@@ -316,6 +343,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     if (fogMode !== 'none') {
       saveFogData();
     }
+    if (wasPanning) emitViewport();
   };
 
   // ── Touch handlers for mobile ──
@@ -348,7 +376,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
         const dist = Math.sqrt((pos.x - tx) ** 2 + (pos.y - ty) ** 2);
         return dist < size / 2 + 10;
       });
-      if (touchedToken && canEditToken(touchedToken)) {
+      if (touchedToken && canEditToken(touchedToken, userId, isDM)) {
         const coords = getGridCoords(touch.clientX, touch.clientY);
         setDragTokenId(touchedToken.id);
         setDragTokenOffset({ x: coords.x - touchedToken.x, y: coords.y - touchedToken.y });
@@ -712,7 +740,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
           }}
           onContextMenu={(e) => {
             e.preventDefault();
-            if (canEditToken(token) || token.ownerId === undefined) {
+            if (canEditToken(token, userId, isDM) || token.ownerId === undefined) {
               setContextMenu({ tokenId: token.id, x: e.clientX, y: e.clientY });
             }
           }}>
@@ -730,7 +758,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
                     width: size,
                     height: size,
                     borderColor: token.color,
-                    cursor: canEditToken(token) ? 'grab' : 'pointer',
+                    cursor: canEditToken(token, userId, isDM) ? 'grab' : 'pointer',
                     minWidth: 24,
                     minHeight: 24,
                     boxShadow: token.id === activeTurnTokenId
@@ -740,12 +768,12 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
                         : undefined,
                   }}
                   onMouseDown={(e) => {
-                    if (!canEditToken(token)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
+                    if (!canEditToken(token, userId, isDM)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
                     handleTokenMouseDown(e, token);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!canEditToken(token)) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
+                    if (!canEditToken(token, userId, isDM)) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
                   }}
                 >
                   <img src={portraitUrl} alt={token.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
@@ -760,7 +788,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
                     height: size,
                     backgroundColor: token.color + '40',
                     borderColor: token.color,
-                    cursor: canEditToken(token) ? 'grab' : 'pointer',
+                    cursor: canEditToken(token, userId, isDM) ? 'grab' : 'pointer',
                     minWidth: 24,
                     minHeight: 24,
                     boxShadow: token.id === activeTurnTokenId
@@ -770,12 +798,12 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
                         : undefined,
                   }}
                   onMouseDown={(e) => {
-                    if (!canEditToken(token)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
+                    if (!canEditToken(token, userId, isDM)) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
                     handleTokenMouseDown(e, token);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!canEditToken(token)) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
+                    if (!canEditToken(token, userId, isDM)) { setSelectedTokenId(token.id); socket.emit('token:select', token.id); }
                   }}
                 >
                   <span className="text-xs font-bold text-white drop-shadow-lg select-none" style={{ fontSize: `${Math.max(10, 14 * scale)}px` }}>
@@ -786,7 +814,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
             })()}
 
             {/* HP Bar below token */}
-            {canEditToken(token) && token.hpMax && (
+            {canEditToken(token, userId, isDM) && token.hpMax && (
               <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/60 rounded px-1 py-0.5 whitespace-nowrap" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleHPChange(token, -1); }}
@@ -811,7 +839,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
             )}
 
             {/* Hidden indicator */}
-            {canEditToken(token) && token.isHidden && (
+            {canEditToken(token, userId, isDM) && token.isHidden && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] bg-dnd-warning/30 text-dnd-warning px-1 rounded" style={{ opacity: dragTokenId === token.id ? 0 : 1 }}>
                 hidden
               </div>
@@ -839,7 +867,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
             >
               View Details
             </button>
-            {canEditToken(ctxToken) && (
+            {canEditToken(ctxToken, userId, isDM) && (
               <>
                 <button
                   onClick={() => {
@@ -995,6 +1023,17 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
               title="Preview as Player"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            </button>
+            <button
+              onClick={() => setSyncViewEnabled(!syncViewEnabled)}
+              className={`w-8 h-8 rounded text-xs font-bold flex items-center justify-center transition-colors ${
+                syncViewEnabled
+                  ? 'bg-dnd-accent text-white ring-2 ring-dnd-accent'
+                  : 'bg-dnd-surface border border-dnd-accent text-white hover:bg-dnd-accent'
+              }`}
+              title="Sync View to Players"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
             </button>
             {!playerViewMode && (<>
             <button

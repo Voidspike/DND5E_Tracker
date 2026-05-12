@@ -57,6 +57,9 @@ export default function CampaignPage() {
 
   const currentMap = maps.find((m) => m.id === currentMapId) || maps[0];
 
+  // Only pass tokens belonging to the current map
+  const currentMapTokens = currentMap ? tokens.filter((t: any) => t.mapId === currentMap.id) : [];
+
   useEffect(() => {
     if (currentMap?.id) {
       fetchTokens(currentMap.id);
@@ -546,7 +549,7 @@ export default function CampaignPage() {
                 characters={characters}
                 onSelect={(c) => setSelectedCharacterId(c.id)}
                 onCreate={async () => {
-                  await createCharacter({
+                  const char = await createCharacter({
                     campaignId: id!,
                     name: 'New Character',
                     class: 'Fighter',
@@ -555,8 +558,7 @@ export default function CampaignPage() {
                     hpMax: 10,
                     ac: 10,
                   } as any);
-                  // Re-fetch characters to get the new one with server-generated ID
-                  await fetchCharacters(id!);
+                  setSelectedCharacterId(char.id);
                 }}
               />
             </div>
@@ -642,7 +644,7 @@ export default function CampaignPage() {
           {activeTab === 'map' && currentMap && (
             <MapView
               map={currentMap}
-              tokens={tokens}
+              tokens={currentMapTokens}
               isDM={isDM}
               userId={user?.id}
               socket={socket}
@@ -667,7 +669,7 @@ export default function CampaignPage() {
             <LoadingSkeleton lines={4} />
           )}
           {activeTab === 'combat' && (
-            <CombatTracker isDM={isDM} userId={user?.id} socket={socket} campaignId={id!} tokens={tokens} />
+            <CombatTracker isDM={isDM} userId={user?.id} socket={socket} campaignId={id!} tokens={currentMapTokens} />
           )}
           {activeTab === 'dice' && (
             <DiceRoller socket={socket} campaignId={id!} />
@@ -704,7 +706,7 @@ export default function CampaignPage() {
         {/* Combat Sidebar */}
         {combatTracker != null && activeTab === 'map' && (
           <div className="w-72 bg-dnd-surface/80 border-l border-dnd-accent/50 overflow-y-auto shrink-0 hidden sm:block">
-            <CombatTracker isDM={isDM} userId={user?.id} socket={socket} campaignId={id!} tokens={tokens} />
+            <CombatTracker isDM={isDM} userId={user?.id} socket={socket} campaignId={id!} tokens={currentMapTokens} />
           </div>
         )}
       </div>

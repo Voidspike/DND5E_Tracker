@@ -167,6 +167,16 @@ export function setupSocket(httpServer: HTTPServer): Server {
       socket.to(`campaign:${data.campaignId}`).emit('map:annotation:clear');
     });
 
+    // DM viewport sync — push DM's zoom/pan to all players
+    socket.on('map:viewport:sync', (data: { campaignId: string; mapId: string; offset: { x: number; y: number }; scale: number }) => {
+      if (!socket.campaignId) return;
+      socket.to(`campaign:${data.campaignId}`).emit('map:viewport:sync', {
+        mapId: data.mapId,
+        offset: data.offset,
+        scale: data.scale,
+      });
+    });
+
     // ─── Combat Operations ───
 
     // Get or create combat for a map (auto-import all tokens)
@@ -180,12 +190,35 @@ export function setupSocket(httpServer: HTTPServer): Server {
         include: { participants: true },
       });
 
+      // Clean up any participants whose tokens don't belong to this map
+      // (retroactive fix for data created before per-map isolation)
+      if (combat) {
+        const mapTokenIds = new Set(
+          (await prisma.token.findMany({ where: { mapId }, select: { id: true } })).map(t => t.id)
+        );
+        const staleParticipants = combat.participants.filter(p => !mapTokenIds.has(p.tokenId));
+        if (staleParticipants.length > 0) {
+          await prisma.combatParticipant.deleteMany({
+            where: { id: { in: staleParticipants.map(p => p.id) } },
+          });
+          combat = (await prisma.combatTracker.findUnique({
+            where: { id: combat.id },
+            include: { participants: true },
+          }))!;
+        }
+      }
+
       if (!combat) {
-        // Count previous combats for this map to generate name
-        const previousCount = await prisma.combatTracker.count({ where: { mapId } });
-        const mapInfo = await prisma.map.findUnique({ where: { id: mapId }, select: { name: true } });
+        // Count previous combats + map name in parallel
+        const [previousCount, mapInfo, mapTokens] = await Promise.all([
+          prisma.combatTracker.count({ where: { mapId } }),
+          prisma.map.findUnique({ where: { id: mapId }, select: { name: true } }),
+          prisma.token.findMany({ where: { mapId }, select: { id: true, name: true } }),
+        ]);
+
         const now = new Date();
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
         const autoName = `${mapInfo?.name || 'Map'}-战斗${previousCount + 1}-${timeStr}`;
 
         combat = await prisma.combatTracker.create({
@@ -198,23 +231,22 @@ export function setupSocket(httpServer: HTTPServer): Server {
           include: { participants: true },
         });
 
-        // Auto-import all tokens on this map
-        const mapTokens = await prisma.token.findMany({ where: { mapId } });
-        for (const token of mapTokens) {
-          await prisma.combatParticipant.create({
-            data: {
-              combatId: combat.id,
-              tokenId: token.id,
+        // Bulk-insert all map tokens as participants
+        if (mapTokens.length > 0) {
+          await prisma.combatParticipant.createMany({
+            data: mapTokens.map((t) => ({
+              combatId: combat!.id,
+              tokenId: t.id,
               initiative: 0,
-              label: token.name,
-            },
-          }).catch(console.error);
+              label: t.name,
+            })),
+          });
+          // Re-fetch to get the created participants with their IDs
+          combat = (await prisma.combatTracker.findUnique({
+            where: { id: combat.id },
+            include: { participants: true },
+          }))!;
         }
-
-        combat = await prisma.combatTracker.findUnique({
-          where: { id: combat.id },
-          include: { participants: true },
-        })!;
       } else if (combat.status === 'paused') {
         // Resume paused combat
         await prisma.combatTracker.update({

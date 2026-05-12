@@ -38,10 +38,7 @@ export function useSocket(campaignId?: string) {
     socket.on('combat:prev_turn', (combat: any) => setCombatTracker(combat));
     socket.on('combat:end', () => { setCombatTracker(null); setCombatMode(false); });
     socket.on('combat:update_name', (data: { combatId: string; name: string }) => {
-      useGameStore.getState().setCombatTracker({
-        ...useGameStore.getState().combatTracker!,
-        name: data.name,
-      } as any);
+      setCombatTracker((prev: any) => prev ? { ...prev, name: data.name } : null);
     });
     socket.on('combat:add', (participant: any) => addCombatParticipant(participant));
     socket.on('combat:remove', (participantId: string) => removeCombatParticipant(participantId));

@@ -180,4 +180,36 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Delete character (DM of campaign or character owner)
+router.delete('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const character = await prisma.character.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, userId: true, campaignId: true },
+    });
+    if (!character) {
+      res.status(404).json({ error: 'Character not found' });
+      return;
+    }
+
+    // Check: owner OR DM of campaign
+    if (character.userId !== req.user!.userId) {
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: character.campaignId },
+        select: { dmId: true },
+      });
+      if (campaign?.dmId !== req.user!.userId) {
+        res.status(403).json({ error: 'Only the DM or character owner can delete this character' });
+        return;
+      }
+    }
+
+    await prisma.character.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (err) {
+    console.error('Delete character error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

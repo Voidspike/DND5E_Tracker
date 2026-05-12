@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { useGameStore } from '../../stores/gameStore';
 import { useCampaignStore } from '../../stores/campaignStore';
+import { canEditToken } from '../../utils/token';
 
 interface CombatTrackerProps {
   isDM: boolean;
@@ -32,8 +33,6 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [showEndDialog, setShowEndDialog] = useState(false);
-
-  const canEditToken = (token: any) => isDM || (userId && token?.ownerId === userId);
 
   const participants = combatTracker?.participants || [];
   const status = combatTracker?.status || 'setup';
@@ -201,7 +200,7 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
                 <span>移动: {activeMovementUsed.toFixed(1)}/{activeSpeed}ft</span>
               </div>
               {/* HP delta input */}
-              {canEditToken(activeToken) && (
+              {canEditToken(activeToken, userId, isDM) && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-dnd-muted">HP:</span>
                   <input

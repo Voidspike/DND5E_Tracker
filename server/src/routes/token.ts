@@ -105,28 +105,26 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// Check if user can modify a token (DM of campaign or token owner)
-async function canModifyToken(tokenId: string, userId: string): Promise<boolean> {
+// Check if user can modify a token (DM of campaign or token owner).
+// Returns the token with minimal fields needed, or null if not found / forbidden.
+async function getTokenIfAuthorized(tokenId: string, userId: string) {
   const token = await prisma.token.findUnique({
     where: { id: tokenId },
-    include: { map: { include: { campaign: true } } },
+    select: {
+      id: true,
+      ownerId: true,
+      map: { select: { campaign: { select: { dmId: true } } } },
+    },
   });
-  if (!token) return false;
-  if (token.ownerId === userId) return true;
-  if (token.map.campaign.dmId === userId) return true;
-  return false;
+  if (!token) return null;
+  if (token.ownerId !== userId && token.map.campaign.dmId !== userId) return null;
+  return token;
 }
 
 // Update token
 router.patch('/:id', authenticate, async (req: Request, res: Response) => {
   try {
-    const token = await prisma.token.findUnique({ where: { id: req.params.id } });
-    if (!token) {
-      res.status(404).json({ error: 'Token not found' });
-      return;
-    }
-
-    if (!(await canModifyToken(req.params.id, req.user!.userId))) {
+    if (!(await getTokenIfAuthorized(req.params.id, req.user!.userId))) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
@@ -151,13 +149,7 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
 
 // Delete token
 router.delete('/:id', authenticate, async (req: Request, res: Response) => {
-  const token = await prisma.token.findUnique({ where: { id: req.params.id } });
-  if (!token) {
-    res.status(404).json({ error: 'Token not found' });
-    return;
-  }
-
-  if (!(await canModifyToken(req.params.id, req.user!.userId))) {
+  if (!(await getTokenIfAuthorized(req.params.id, req.user!.userId))) {
     res.status(403).json({ error: 'Forbidden' });
     return;
   }
