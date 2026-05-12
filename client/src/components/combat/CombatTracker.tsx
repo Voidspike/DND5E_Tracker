@@ -23,7 +23,7 @@ const COMBAT_ACTIONS: { key: string; label: string; color: string }[] = [
 ];
 
 export default function CombatTracker({ isDM, socket, campaignId, tokens }: CombatTrackerProps) {
-  const { combatTracker, combatLog, tokenMovementUsed, resetTokenMovement } = useGameStore();
+  const { combatTracker, combatLog, tokenMovementUsed, resetTokenMovement, setHighlightedTokenId } = useGameStore();
   const { updateToken, updateCharacter } = useCampaignStore();
   const [editingInitId, setEditingInitId] = useState<string | null>(null);
   const [editInitValue, setEditInitValue] = useState('');
@@ -82,7 +82,11 @@ export default function CombatTracker({ isDM, socket, campaignId, tokens }: Comb
       const newHp = Math.max(0, (activeToken.hpCurrent || 0) + hpDelta);
       updateToken(activeToken.id, { hpCurrent: newHp }).catch(console.error);
       if (activeToken.characterId) {
-        updateCharacter(activeToken.characterId, { hpCurrent: newHp } as any).catch(console.error);
+        updateCharacter(activeToken.characterId, { hpCurrent: newHp } as any)
+          .then((updated) => {
+            if (updated) socket.emit('character:update', { characterId: activeToken.characterId, updates: { hpCurrent: newHp } });
+          })
+          .catch(console.error);
       }
       setHpDeltas(prev => ({ ...prev, [activeToken.id]: 0 }));
     }
@@ -172,8 +176,9 @@ export default function CombatTracker({ isDM, socket, campaignId, tokens }: Comb
           return (
             <div
               key={p.id}
-              className={`flex items-center justify-between px-3 py-1.5 rounded text-sm ${
-                isActive ? 'bg-dnd-primary/20 border border-dnd-primary' : 'bg-dnd-bg border border-dnd-accent/20'
+              onClick={() => setHighlightedTokenId(p.tokenId)}
+              className={`flex items-center justify-between px-3 py-1.5 rounded text-sm cursor-pointer ${
+                isActive ? 'bg-dnd-primary/20 border border-dnd-primary' : 'bg-dnd-bg border border-dnd-accent/20 hover:border-dnd-accent/50'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">

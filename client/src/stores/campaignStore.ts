@@ -38,14 +38,16 @@ interface CampaignState {
 
   fetchTokens: (mapId: string) => Promise<void>;
   fetchTokensByCampaign: (campaignId: string) => Promise<void>;
-  createToken: (data: CreateTokenRequest) => Promise<void>;
+  createToken: (data: CreateTokenRequest) => Promise<Token>;
   updateToken: (id: string, data: UpdateTokenRequest) => Promise<void>;
   syncToken: (token: any) => void;
+  removeToken: (id: string) => void;
   deleteToken: (id: string) => Promise<void>;
 
   fetchCharacters: (campaignId: string) => Promise<void>;
   createCharacter: (data: CreateCharacterRequest) => Promise<void>;
-  updateCharacter: (id: string, data: Partial<Character>) => Promise<void>;
+  updateCharacter: (id: string, data: Partial<Character>) => Promise<Character>;
+  syncCharacter: (character: any) => void;
 }
 
 export const useCampaignStore = create<CampaignState>((set, get) => ({
@@ -158,6 +160,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   createToken: async (data) => {
     const token = await tokenApi.create(data);
     set((s) => ({ tokens: [...s.tokens, token] }));
+    return token;
   },
 
   updateToken: async (id, data) => {
@@ -166,11 +169,26 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   },
 
   syncToken: (token) => {
-    set((s) => ({ tokens: s.tokens.map((t) => (t.id === token.id ? { ...t, ...token } : t)) }));
+    set((s) => {
+      const exists = s.tokens.some((t) => t.id === token.id);
+      if (exists) {
+        return { tokens: s.tokens.map((t) => (t.id === token.id ? { ...t, ...token } : t)) };
+      }
+      return { tokens: [...s.tokens, token] };
+    });
+  },
+
+  removeToken: (id) => {
+    set((s) => ({ tokens: s.tokens.filter((t) => t.id !== id) }));
   },
 
   deleteToken: async (id) => {
-    await tokenApi.delete(id);
+    try {
+      await tokenApi.delete(id);
+    } catch (err) {
+      // Token no longer exists in DB — still remove from local state
+      console.warn('Delete token: server returned error, removing locally:', (err as Error).message);
+    }
     set((s) => ({ tokens: s.tokens.filter((t) => t.id !== id) }));
   },
 
@@ -189,5 +207,16 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set((s) => ({
       characters: s.characters.map((c) => (c.id === id ? updated : c)),
     }));
+    return updated;
+  },
+
+  syncCharacter: (character) => {
+    set((s) => {
+      const exists = s.characters.some((c) => c.id === character.id);
+      if (exists) {
+        return { characters: s.characters.map((c) => (c.id === character.id ? { ...c, ...character } : c)) };
+      }
+      return { characters: [...s.characters, character] };
+    });
   },
 }));

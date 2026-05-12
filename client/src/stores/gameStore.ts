@@ -44,6 +44,7 @@ interface GameState {
   fogData: string | null;
   combatMode: boolean;
   tokenMovementUsed: Record<string, number>;
+  highlightedTokenId: string | null;
 
   setOnlinePlayers: (players: OnlinePlayer[]) => void;
   setSelectedTokenId: (id: string | null) => void;
@@ -58,6 +59,7 @@ interface GameState {
   setCombatMode: (active: boolean) => void;
   setTokenMovementUsed: (tokenId: string, distance: number) => void;
   resetTokenMovement: () => void;
+  setHighlightedTokenId: (id: string | null) => void;
   reset: () => void;
 }
 
@@ -78,6 +80,7 @@ export const useGameStore = create<GameState>((set) => ({
   fogData: null,
   combatMode: false,
   tokenMovementUsed: {},
+  highlightedTokenId: null,
 
   setOnlinePlayers: (players) => set({ onlinePlayers: players }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
@@ -85,6 +88,7 @@ export const useGameStore = create<GameState>((set) => ({
   setCombatMode: (active) => set({ combatMode: active }),
   setTokenMovementUsed: (tokenId, distance) => set((s) => ({ tokenMovementUsed: { ...s.tokenMovementUsed, [tokenId]: distance } })),
   resetTokenMovement: () => set({ tokenMovementUsed: {} }),
+  setHighlightedTokenId: (id) => set({ highlightedTokenId: id }),
   addCombatParticipant: (participant) =>
     set((s) => {
       if (!s.combatTracker) return s;
@@ -134,5 +138,6 @@ export const useGameStore = create<GameState>((set) => ({
       fogData: null,
       combatMode: false,
       tokenMovementUsed: {},
+      highlightedTokenId: null,
     }),
 }));

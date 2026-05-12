@@ -87,31 +87,10 @@ export function setupSocket(httpServer: HTTPServer): Server {
     });
 
     // ─── Token Operations ───
-    socket.on('token:create', async (data) => {
-      try {
-        const token = await prisma.token.create({
-          data: {
-            mapId: data.token.mapId,
-            campaignId: data.campaignId,
-            type: data.token.type || 'character',
-            name: data.token.name,
-            x: data.token.x || 0,
-            y: data.token.y || 0,
-            ownerId: data.token.ownerId || null,
-            imageUrl: data.token.imageUrl || null,
-            color: data.token.color || '#ffffff',
-            hpCurrent: data.token.hpCurrent || null,
-            hpMax: data.token.hpMax || null,
-            ac: data.token.ac || null,
-            darkvision: data.token.darkvision || null,
-            speed: data.token.speed || null,
-            characterId: data.token.characterId || null,
-          },
-        });
-        io.to(`campaign:${data.campaignId}`).emit('token:create', token as any);
-      } catch (err) {
-        console.error('Socket token:create error:', err);
-      }
+    // Token create: relay to other clients (REST API already persisted it)
+    socket.on('token:create', (data) => {
+      if (!socket.campaignId) return;
+      socket.to(`campaign:${data.campaignId}`).emit('token:create', data.token as any);
     });
 
     // Token drag: real-time broadcast during drag (no DB write)
@@ -433,6 +412,17 @@ export function setupSocket(httpServer: HTTPServer): Server {
       if (campaign) {
         io.to(`user:${campaign.dmId}`).emit('chat:whisper', msg as any);
       }
+    });
+
+    // ─── Character Operations ───
+    socket.on('character:update', (data: { characterId: string; updates: Record<string, any> }) => {
+      if (!socket.campaignId) return;
+      prisma.character
+        .update({ where: { id: data.characterId }, data: data.updates })
+        .then((updated) => {
+          io.to(`campaign:${socket.campaignId!}`).emit('character:update', updated as any);
+        })
+        .catch(console.error);
     });
 
     socket.on('disconnect', () => {

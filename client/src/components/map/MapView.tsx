@@ -20,7 +20,7 @@ interface MapViewProps {
 
 export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: MapViewProps) {
   const { createToken, updateToken, fetchTokens, updateMap, deleteMap, deleteToken, characters, updateCharacter } = useCampaignStore();
-  const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement } = useGameStore();
+  const { fogData, setFogData, setSelectedTokenId, combatMode, setCombatMode, combatTracker, tokenMovementUsed, setTokenMovementUsed, resetTokenMovement, highlightedTokenId, setHighlightedTokenId } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const visionCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -169,6 +169,41 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
       ctx.setLineDash([]);
     }
   }, [selectedTokenId, tokens, gridPixels, scale, offset, mapPixelWidth, mapPixelHeight]);
+
+  // Compute active turn token ID from combat tracker
+  const activeTurnTokenId = combatMode && combatTracker
+    ? combatTracker.participants.find((p: any) => p.isActiveTurn)?.tokenId || null
+    : null;
+
+  // Pan to a token (smoothly center on it without changing zoom)
+  const panToToken = useCallback((tokenId: string) => {
+    const token = tokens.find((t: any) => t.id === tokenId);
+    if (!token || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    setIsAnimating(true);
+    setOffset({
+      x: cx - token.x * gridPixels * scale,
+      y: cy - token.y * gridPixels * scale,
+    });
+    clearTimeout((window as any).__panAnimTimeout);
+    (window as any).__panAnimTimeout = setTimeout(() => setIsAnimating(false), 300);
+  }, [tokens, gridPixels, scale]);
+
+  // Auto-pan to active turn token when it changes
+  useEffect(() => {
+    if (activeTurnTokenId) {
+      panToToken(activeTurnTokenId);
+    }
+  }, [activeTurnTokenId]);
+
+  // Pan to highlighted token when clicked in combat list
+  useEffect(() => {
+    if (highlightedTokenId) {
+      panToToken(highlightedTokenId);
+    }
+  }, [highlightedTokenId]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -383,6 +418,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
 
   const handleTouchEnd = () => {
     if (dragTokenId) {
+      updateToken(dragTokenId, { x: dragTokenPos.x, y: dragTokenPos.y });
       socket.emit('token:move', { tokenId: dragTokenId, x: dragTokenPos.x, y: dragTokenPos.y });
       setDragTokenId(null);
     }
@@ -492,9 +528,8 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
       color: typeDef?.color || '#e94560',
     };
 
-    await createToken(tokenData);
-    socket.emit('token:create', { campaignId: map.campaignId, token: tokenData });
-    fetchTokens(map.id);
+    const created = await createToken(tokenData);
+    socket.emit('token:create', { campaignId: map.campaignId, token: created });
   };
 
   const handleTokenMouseDown = (e: React.MouseEvent, token: any) => {
@@ -519,7 +554,11 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
     });
     // Sync HP to linked character
     if (token.characterId) {
-      updateCharacter(token.characterId, { hpCurrent: newHp } as any).catch(console.error);
+      updateCharacter(token.characterId, { hpCurrent: newHp } as any)
+        .then((updated) => {
+          if (updated) socket.emit('character:update', { characterId: token.characterId, updates: { hpCurrent: newHp } });
+        })
+        .catch(console.error);
     }
   };
 
@@ -658,6 +697,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
             top: (dragTokenId === token.id ? dragTokenPos.y : token.y) * gridPixels * scale + offset.y,
             transform: 'translate(-50%, -50%)',
             zIndex: dragTokenId === token.id ? 50 : 10,
+            transition: (isAnimating && dragTokenId !== token.id) ? 'left 0.3s ease-out, top 0.3s ease-out' : 'none',
           }}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -672,7 +712,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
               const size = Math.max(24, token.width * gridPixels * scale);
               return portraitUrl ? (
                 <div
-                  className={`rounded-full border-2 transition-all hover:ring-2 hover:ring-dnd-primary overflow-hidden ${
+                  className={`rounded-full border-2 overflow-hidden ${
                     dragTokenId === token.id ? 'opacity-80 scale-110' : ''
                   }`}
                   style={{
@@ -682,6 +722,11 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                     cursor: isDM ? 'grab' : 'pointer',
                     minWidth: 24,
                     minHeight: 24,
+                    boxShadow: token.id === activeTurnTokenId
+                      ? '0 0 0 3px rgba(255, 193, 7, 0.85), 0 0 16px rgba(255, 193, 7, 0.5)'
+                      : token.id === highlightedTokenId
+                        ? '0 0 0 3px rgba(0, 188, 212, 0.85), 0 0 16px rgba(0, 188, 212, 0.5)'
+                        : undefined,
                   }}
                   onMouseDown={(e) => {
                     if (!isDM) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
@@ -696,7 +741,7 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                 </div>
               ) : (
                 <div
-                  className={`flex items-center justify-center rounded-full border-2 transition-all hover:ring-2 hover:ring-dnd-primary ${
+                  className={`flex items-center justify-center rounded-full border-2 ${
                     dragTokenId === token.id ? 'opacity-80 scale-110' : ''
                   }`}
                   style={{
@@ -707,6 +752,11 @@ export default function MapView({ map, tokens, isDM, socket, selectedTokenId }: 
                     cursor: isDM ? 'grab' : 'pointer',
                     minWidth: 24,
                     minHeight: 24,
+                    boxShadow: token.id === activeTurnTokenId
+                      ? '0 0 0 3px rgba(255, 193, 7, 0.85), 0 0 16px rgba(255, 193, 7, 0.5)'
+                      : token.id === highlightedTokenId
+                        ? '0 0 0 3px rgba(0, 188, 212, 0.85), 0 0 16px rgba(0, 188, 212, 0.5)'
+                        : undefined,
                   }}
                   onMouseDown={(e) => {
                     if (!isDM) { e.stopPropagation(); setSelectedTokenId(token.id); socket.emit('token:select', token.id); return; }
