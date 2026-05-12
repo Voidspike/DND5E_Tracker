@@ -108,10 +108,10 @@
 
 ### 代码质量
 - [ ] **TypeScript 严格 any 消除**：API + stores 已处理，组件仍有残留
-- [ ] **API 错误统一处理**：全局 error handler
+- [x] **API 错误统一处理**：全局 error handler（AppError + Zod + Prisma 异常）
+- [x] **Rate limiting**：全局 100req/min + 登录 20req/min
+- [x] **日志系统**：结构化 JSON logger（LOG_LEVEL 环境变量控制）
 - [ ] **请求验证**：Zod schema 全覆盖
-- [ ] **日志系统**：pino / winston
-- [ ] **Rate limiting**：API 频率限制
 
 ### 安全
 - [ ] **输入消毒**：XSS 防护

@@ -11,6 +11,9 @@ import tokenRoutes from './routes/token';
 import characterRoutes from './routes/character';
 import combatRoutes from './routes/combat';
 import uploadRoutes from './routes/upload';
+import { errorHandler } from './middleware/errorHandler';
+import { globalLimiter, authLimiter } from './middleware/rateLimiter';
+import { logger } from './utils/logger';
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,12 +21,13 @@ const httpServer = createServer(app);
 // Middleware
 app.use(cors({ origin: config.corsOrigins, credentials: true }));
 app.use(express.json());
+app.use(globalLimiter);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/maps', mapRoutes);
 app.use('/api/tokens', tokenRoutes);
@@ -36,13 +40,15 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Global error handler (must be last)
+app.use(errorHandler);
+
 // Socket.IO
 const io = setupSocket(httpServer);
 
 // Start
 httpServer.listen(config.port, () => {
-  console.log(`Server running on port ${config.port}`);
-  console.log(`Environment: ${config.nodeEnv}`);
+  logger.info('Server started', { port: config.port, env: config.nodeEnv });
 });
 
 export { app, httpServer, io };
