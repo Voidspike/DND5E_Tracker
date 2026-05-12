@@ -101,7 +101,7 @@
 - [ ] **E2E 测试**：Cypress / Playwright
 
 ### CI/CD
-- [ ] **GitHub CI**：PR 自动 lint + type check + test
+- [x] **GitHub CI**：push/PR 自动 typecheck + test (PostgreSQL 服务容器)
 - [ ] **Docker 多阶段构建**：生产镜像
 - [ ] **部署配置**：Vercel/Netlify + 后端部署脚本
 - [ ] **环境变量治理**：dev/staging/prod 分离

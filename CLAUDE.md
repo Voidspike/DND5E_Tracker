@@ -29,6 +29,13 @@ npm run dev                   # Start dev (frontend :5173, backend :3001)
 
 Test accounts: `dm@example.com` / `player@example.com` (password: `password123`). Seed campaign invite code: `DND2024`.
 
+```bash
+npm run test -w server          # Run server tests (vitest)
+npm run test:watch -w server    # Watch mode
+```
+
+> **CI**: GitHub Actions runs typecheck + tests on every push to main and every PR.
+
 > **Note**: `prisma migrate dev` is interactive and cannot run in non-TTY shells. Use `prisma db push` instead for schema changes.
 
 ## Architecture Pattern
@@ -115,8 +122,9 @@ shared/types/index.ts  →  Prisma schema  →  API route  →  Socket event  �
 - **Vaelira** — Drow Elf Sorcerer Lv6 (DM), darkvision 120ft, speed 30ft, full spell slots + prepared spells
 
 ### Known Gaps
-- **No testing** (zero test files)
-- **No CI/CD** (no GitHub Actions)
+- **Backend tests**: token + character route tests (vitest + supertest, 13 tests)
+- **GitHub CI**: pushes/PRs trigger typecheck + test (PostgreSQL service container)
+- **CD**: no auto-deploy yet — manual deployment
 - **Redis configured but unused** in application code
 - **No rate limiting** on API endpoints
 - **No global Express error handler** middleware
