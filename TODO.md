@@ -110,13 +110,13 @@
 - [x] **API 错误统一处理**：全局 error handler（AppError + Zod + Prisma 异常）
 - [x] **Rate limiting**：全局 100req/min + 登录 20req/min
 - [x] **日志系统**：结构化 JSON logger（LOG_LEVEL 环境变量控制）
-- [ ] **请求验证**：Zod schema 全覆盖
+- [x] **Zod schema 全覆盖**：spell + combat 路由补上 Zod 校验
 
 ### 安全
 - [ ] **输入消毒**：XSS 防护
 - [ ] **CORS 加固**：生产环境严格配置
 - [ ] **密码策略**：强度要求、重试限制
-- [ ] **WebSocket 认证校验**：每个事件校验权限
+- [x] **WebSocket 认证校验**：combat/map/token 操作均校验 DM 或 owner 权限
 
 ---
 
