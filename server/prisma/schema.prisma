@@ -209,6 +209,21 @@ model Spell {
   desc       String
 }
 
+model Equipment {
+  id            String  @id @default(uuid())
+  en            String  @unique
+  cn            String
+  category      String  // weapon | armor
+  subcategory   String  // 简易近战武器 | 轻甲 | ...
+  price         String
+  damage        String? // weapon only: "1d8挥砍"
+  weight        String
+  properties    String? // weapon: "轻型，投掷"
+  ac            String? // armor only: "14＋敏捷调整值(最大2)"
+  strRequirement String? // armor: "力量15"
+  stealth       String? // armor: "劣势" | "－"
+}
+
 model ChatMessage {
   id         String   @id @default(uuid())
   campaignId String

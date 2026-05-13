@@ -11,6 +11,7 @@ import tokenRoutes from './routes/token';
 import characterRoutes from './routes/character';
 import combatRoutes from './routes/combat';
 import spellRoutes from './routes/spell';
+import equipmentRoutes from './routes/equipment';
 import uploadRoutes from './routes/upload';
 import { errorHandler } from './middleware/errorHandler';
 import { globalLimiter, authLimiter } from './middleware/rateLimiter';
@@ -47,6 +48,7 @@ app.use('/api/tokens', tokenRoutes);
 app.use('/api/characters', characterRoutes);
 app.use('/api/combat', combatRoutes);
 app.use('/api/spells', spellRoutes);
+app.use('/api/equipment', equipmentRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // Health check

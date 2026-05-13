@@ -1,10 +1,11 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
 import { useAuthStore } from '../../stores/authStore';
 import { useCampaignStore } from '../../stores/campaignStore';
 import type { Character, CharacterStats } from '@dnd/shared';
 import { SPELLS } from '../../data/spells';
 import SpellTooltip from '../spell/SpellTooltip';
+import { equipmentApi } from '../../services/api';
 
 function safeArray<T>(v: unknown, fallback: T[] = []): T[] {
   if (Array.isArray(v)) return v as T[];
@@ -1145,6 +1146,45 @@ function EquipPanel({ character, isOwner, editing, update }: {
   const equipment = safeArray<Record<string, unknown>>(character.equipment);
   const inventory = safeObj<Record<string, unknown>>(character.inventory, {});
 
+  // Equipment database helpers
+  const [equipDbSearch, setEquipDbSearch] = useState('');
+  const [equipDbResults, setEquipDbResults] = useState<any[]>([]);
+  const [equipDbTarget, setEquipDbTarget] = useState<{ type: 'weapon'; idx: number } | { type: 'armor' } | null>(null);
+  const [equipDbLoading, setEquipDbLoading] = useState(false);
+
+  const searchEquipment = useCallback(async (category: string, search: string) => {
+    if (!search.trim()) { setEquipDbResults([]); return; }
+    setEquipDbLoading(true);
+    try {
+      const items = await equipmentApi.search(category, search);
+      setEquipDbResults(items.slice(0, 10));
+    } catch { setEquipDbResults([]); }
+    setEquipDbLoading(false);
+  }, []);
+
+  const selectEquipment = async (item: any) => {
+    if (!equipDbTarget) return;
+    if (equipDbTarget.type === 'weapon') {
+      const updated = weapons.map((w: any, i: number) =>
+        i === equipDbTarget.idx ? { ...w, name: item.cn, dmg: item.damage || w.dmg, type: item.damage?.replace(/\d+d\d+/, '') || w.type, properties: item.properties || '' } : w
+      );
+      await update({ weapons: updated } as any);
+    } else if (equipDbTarget.type === 'armor') {
+      await update({
+        armor: {
+          name: item.cn,
+          type: item.subcategory,
+          ac: item.ac,
+          stealth: item.stealth || '',
+          strReq: item.strRequirement || '',
+        },
+      } as any);
+    }
+    setEquipDbTarget(null);
+    setEquipDbSearch('');
+    setEquipDbResults([]);
+  };
+
   const addWeapon = async () => {
     await update({ weapons: [...weapons, { name: '', atk: '+0', dmg: '1d4', type: '挥砍', properties: '' }] } as any);
   };
@@ -1223,6 +1263,12 @@ function EquipPanel({ character, isOwner, editing, update }: {
           <div key={i} className="bg-dnd-bg rounded-lg p-3">
             {editing ? (
               <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setEquipDbTarget({ type: 'weapon', idx: i }); setEquipDbSearch(''); setEquipDbResults([]); }}
+                    className="text-[10px] bg-dnd-accent/30 text-dnd-accent px-1.5 py-0.5 rounded hover:bg-dnd-accent/50"
+                  >📚 资料库</button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <EditField label="名称" value={w.name || ''} onChange={v => updateWeapon(i, 'name', v)} />
                   <EditField label="攻击加值" value={w.atk || ''} onChange={v => updateWeapon(i, 'atk', v)} />
@@ -1252,7 +1298,13 @@ function EquipPanel({ character, isOwner, editing, update }: {
       {/* Armor */}
       {isOwner && editing ? (
         <div className="bg-dnd-bg rounded-lg p-3 space-y-2">
-          <h3 className="text-xs font-semibold text-dnd-muted">护甲</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-dnd-muted">护甲</h3>
+            <button
+              onClick={() => { setEquipDbTarget({ type: 'armor' }); setEquipDbSearch(''); setEquipDbResults([]); }}
+              className="text-[10px] bg-dnd-accent/30 text-dnd-accent px-1.5 py-0.5 rounded hover:bg-dnd-accent/50"
+            >📚 资料库</button>
+          </div>
           <EditField label="名称" value={(armor as any).name || ''} onChange={v => updateArmor('name', v)} />
           <div className="grid grid-cols-2 gap-2">
             <EditField label="AC" value={(armor as any).ac || ''} onChange={v => updateArmor('ac', v)} />
@@ -1452,6 +1504,41 @@ function EquipPanel({ character, isOwner, editing, update }: {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Equipment Database Modal */}
+      {equipDbTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setEquipDbTarget(null)}>
+          <div className="bg-dnd-surface rounded-xl p-4 w-96 max-h-[60vh] border border-dnd-accent shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-sm">选择{equipDbTarget.type === 'weapon' ? '武器' : '护甲'}</h3>
+              <button onClick={() => setEquipDbTarget(null)} className="text-dnd-muted hover:text-dnd-text">✕</button>
+            </div>
+            <input type="text" value={equipDbSearch}
+              onChange={e => { setEquipDbSearch(e.target.value); searchEquipment(equipDbTarget.type, e.target.value); }}
+              placeholder="输入关键词搜索..." autoFocus
+              className="w-full bg-dnd-bg border border-dnd-accent/50 rounded px-3 py-1.5 text-sm mb-2" />
+            <div className="overflow-y-auto flex-1 space-y-1">
+              {equipDbLoading && <p className="text-xs text-dnd-muted text-center py-4">搜索中...</p>}
+              {equipDbResults.map((item, i) => (
+                <button key={i} onClick={() => selectEquipment(item)}
+                  className="w-full text-left px-3 py-2 rounded text-xs hover:bg-dnd-accent/20 border border-dnd-accent/10">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-dnd-text">{item.cn}</span>
+                    <span className="text-dnd-muted">{item.subcategory}</span>
+                  </div>
+                  <div className="flex gap-2 mt-1 text-dnd-muted">
+                    {item.damage && <span>{item.damage}</span>}
+                    {item.ac && <span>AC {item.ac}</span>}
+                    <span>{item.price}</span> <span>{item.weight}磅</span>
+                  </div>
+                </button>
+              ))}
+              {!equipDbLoading && equipDbResults.length === 0 && equipDbSearch && <p className="text-xs text-dnd-muted text-center py-4">未找到匹配物品</p>}
+              {!equipDbSearch && <p className="text-xs text-dnd-muted text-center py-4">输入关键词搜索{equipDbTarget.type === 'weapon' ? '武器' : '护甲'}</p>}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -93,6 +93,16 @@ export const tokenApi = {
   delete: (id: string): Promise<void> => request<void>(`/tokens/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Equipment ───
+export const equipmentApi = {
+  search: (category?: string, search?: string): Promise<any[]> => {
+    const qs = new URLSearchParams();
+    if (category) qs.set('category', category);
+    if (search) qs.set('search', search);
+    return request<any[]>(`/equipment?${qs.toString()}`);
+  },
+};
+
 // ─── Spells ───
 export const spellApi = {
   search: (params: { class?: string; level?: number; search?: string }): Promise<any[]> => {
