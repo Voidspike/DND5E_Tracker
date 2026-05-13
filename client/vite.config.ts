@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 15173,
+    allowedHosts: ['.ngrok-free.dev', '.ngrok.io'],
     proxy: {
       '/api': 'http://127.0.0.1:3001',
       '/uploads': 'http://127.0.0.1:3001',

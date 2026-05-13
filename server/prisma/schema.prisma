@@ -57,6 +57,9 @@ model Map {
   campaign      Campaign @relation(fields: [campaignId], references: [id])
   name          String
   imageUrl      String
+  imageWidth    Int?
+  imageHeight   Int?
+  displayScale  Float    @default(1.0)
   width         Int      @default(0)
   height        Int      @default(0)
   gridSize      Int      @default(50)

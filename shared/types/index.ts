@@ -70,6 +70,9 @@ export interface MapData {
   campaignId: string;
   name: string;
   imageUrl: string;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  displayScale: number;
   width: number;
   height: number;
   gridSize: number;
@@ -84,6 +87,9 @@ export interface MapData {
 export interface CreateMapRequest {
   name: string;
   imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  displayScale?: number;
   width?: number;
   height?: number;
   gridSize?: number;
@@ -92,6 +98,9 @@ export interface CreateMapRequest {
 }
 
 export interface UpdateGridRequest {
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+  displayScale?: number;
   gridSize?: number;
   gridOffsetX?: number;
   gridOffsetY?: number;

@@ -129,6 +129,34 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
   const canDelete = isOwner || isDM;
   const stats = safeObj<CharacterStats>(character.stats, { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 });
   const profBonus = character.proficiency || 2;
+  const armor = safeObj<Record<string, unknown>>(character.armor, {});
+
+  // Auto-compute AC from armor
+  const dexMod = getModifier(stats.dex);
+  const computedAC = (() => {
+    const acFormula = armor.ac as string | undefined;
+    const armorType = armor.type as string | undefined;
+    if (!acFormula) return 10 + dexMod; // Unarmored
+
+    // Parse AC formula like "11＋敏捷调整值", "14＋敏捷调整值(最大2)", "16", "2"
+    let ac = parseInt(acFormula, 10);
+    if (isNaN(ac)) return 10 + dexMod;
+
+    // Light armor: full DEX
+    if (acFormula.includes('敏捷') && !acFormula.includes('最大')) {
+      ac += dexMod;
+    }
+    // Medium armor: DEX max 2
+    if (acFormula.includes('最大2')) {
+      ac += Math.min(dexMod, 2);
+    }
+    // Heavy armor: no DEX (no "敏捷" keyword except shield)
+    // Shield: ac=2, just add to total
+    if (armorType === '盾牌') {
+      return ac; // Shield alone gives fixed AC
+    }
+    return Math.max(ac, 0);
+  })();
   const saveProfs = safeArray<string>(character.statSaveProficiencies);
   const skillProfs = safeArray<string>(character.skillProficiencies);
   const spellcastingMod = character.spellcastingAbility
@@ -525,7 +553,13 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <HpBar label="HP" current={character.hpCurrent} max={character.hpMax} temp={character.tempHp} />
-              <StatBlock label="AC" value={String(character.ac)} highlight />
+              <div className="bg-dnd-bg rounded-lg p-3">
+                <span className="block text-xs text-dnd-muted">
+                  AC {character.ac !== computedAC && `(手动: ${character.ac}) `}
+                </span>
+                <span className="block text-lg font-bold text-dnd-primary">{computedAC}</span>
+                {armor.name ? <span className="text-[10px] text-dnd-muted">{String(armor.name)}</span> : null}
+              </div>
               <div className="bg-dnd-bg rounded-lg p-3">
                 <span className="block text-xs text-dnd-muted">先攻</span>
                 <span className="block text-lg font-bold">{formatMod(computedInitiative)}</span>
@@ -540,7 +574,8 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
                 <EditField label="HP当前" value={String(character.hpCurrent)} type="number" onChange={v => update({ hpCurrent: parseInt(v) || 0 } as any)} />
                 <EditField label="HP最大" value={String(character.hpMax)} type="number" onChange={v => update({ hpMax: parseInt(v) || 1 } as any)} />
                 <EditField label="临时HP" value={String(character.tempHp)} type="number" onChange={v => update({ tempHp: parseInt(v) || 0 } as any)} />
-                <EditField label="AC" value={String(character.ac)} type="number" onChange={v => update({ ac: parseInt(v) || 10 } as any)} />
+                <EditField label={`AC${character.ac !== computedAC ? ' (手动)' : ' (自动)'}`} value={String(character.ac !== computedAC ? character.ac : computedAC)} type="number" onChange={v => update({ ac: parseInt(v) || 10 } as any)} />
+                {armor.name ? <p className="text-[10px] text-dnd-muted -mt-1">护甲: {String(armor.name)} → 自动AC {computedAC}</p> : null}
                 <EditField label="速度(ft)" value={String(character.speed || 30)} type="number" onChange={v => update({ speed: parseInt(v) || 30 } as any)} />
                 <EditField label="黑暗视觉(ft)" value={String(character.darkvision || 0)} type="number" onChange={v => update({ darkvision: parseInt(v) || 0 } as any)} />
                 <EditField label="生命骰" value={character.hitDice || ''} onChange={v => update({ hitDice: v || null } as any)} />
@@ -642,6 +677,8 @@ export default function CharacterSheet({ character, onClose, socket, campaignId 
             isOwner={isOwner}
             editing={editing}
             update={update}
+            stats={stats}
+            computedAC={computedAC}
           />
         )}
       </div>
@@ -1134,11 +1171,13 @@ function armorLabel(key: string): string {
 const CURRENCY_COINS = ['cp', 'sp', 'ep', 'gp', 'pp'] as const;
 const CURRENCY_LABELS: Record<string, string> = { cp: '铜币', sp: '银币', ep: '金银币', gp: '金币', pp: '白金币' };
 
-function EquipPanel({ character, isOwner, editing, update }: {
+function EquipPanel({ character, isOwner, editing, update, stats, computedAC }: {
   character: Character;
   isOwner: boolean;
   editing: boolean;
   update: (data: Partial<Character>) => Promise<void>;
+  stats: CharacterStats;
+  computedAC: number;
 }) {
   const weapons = safeArray<Record<string, unknown>>(character.weapons);
   const armor = safeObj<Record<string, unknown>>(character.armor, {});
@@ -1170,14 +1209,21 @@ function EquipPanel({ character, isOwner, editing, update }: {
       );
       await update({ weapons: updated } as any);
     } else if (equipDbTarget.type === 'armor') {
+      // Parse AC from formula (e.g., "11＋敏捷调整值" → 11; "16" → 16; "2" → 2)
+      const baseAC = parseInt(item.ac || '0', 10);
+      // Compute actual AC with DEX modifier
+      const dexMod = getModifier(stats.dex);
+      let finalAC = baseAC;
+      if (item.ac?.includes('敏捷') && !item.ac.includes('最大')) finalAC = baseAC + dexMod;
+      else if (item.ac?.includes('最大2')) finalAC = baseAC + Math.min(dexMod, 2);
+      else if (item.subcategory === '盾牌') finalAC = baseAC; // Shield adds to existing AC — simplified
+
       await update({
         armor: {
-          name: item.cn,
-          type: item.subcategory,
-          ac: item.ac,
-          stealth: item.stealth || '',
-          strReq: item.strRequirement || '',
+          name: item.cn, type: item.subcategory, ac: item.ac,
+          stealth: item.stealth || '', strReq: item.strRequirement || '',
         },
+        ac: finalAC,
       } as any);
     }
     setEquipDbTarget(null);
@@ -1199,7 +1245,8 @@ function EquipPanel({ character, isOwner, editing, update }: {
 
   const updateArmor = async (field: string, value: string) => {
     const updated = { ...armor, [field]: value };
-    await update({ armor: updated } as any);
+    // Always recalculate AC when armor changes (unless AC is manually set and this isn't an AC change)
+    await update({ armor: updated, ac: character.ac !== computedAC ? undefined : undefined } as any);
   };
 
   const updateCurrency = async (coin: string, value: number) => {

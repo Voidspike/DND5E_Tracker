@@ -32,6 +32,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
   const [panDragging, setPanDragging] = useState(false);
   const [panDragStart, setPanDragStart] = useState({ x: 0, y: 0 });
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [syncViewEnabled, setSyncViewEnabled] = useState(false);
   const [showGridSettings, setShowGridSettings] = useState(false);
   const [gridSize, setGridSize] = useState(map.gridSize || 50);
@@ -39,6 +40,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
   const [gridOffsetY, setGridOffsetY] = useState(map.gridOffsetY || 0);
   const [gridColor, setGridColor] = useState(map.gridColor || 'rgba(255,255,255,0.15)');
   const [gridLineWidth, setGridLineWidth] = useState(map.gridLineWidth || 1);
+  const [displayScale, setDisplayScale] = useState(map.displayScale || 1.0);
   const [mapW, setMapW] = useState(map.width || 30);
   const [mapH, setMapH] = useState(map.height || 20);
   const [fogMode, setFogMode] = useState<'none' | 'paint' | 'erase'>('none');
@@ -58,8 +60,14 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
   }>({ touches: new Map(), pinchDist: 0 });
 
   const gridPixels = gridSize;
-  const mapPixelWidth = (map.width || 30) * gridPixels;
-  const mapPixelHeight = (map.height || 20) * gridPixels;
+  const effectiveDisplayScale = displayScale;
+  // Use image natural dimensions if available, fallback to computed
+  const imageWidth = map.imageWidth || (map.width || 30) * gridPixels;
+  const imageHeight = map.imageHeight || (map.height || 20) * gridPixels;
+  const mapPixelWidth = imageWidth * effectiveDisplayScale;
+  const mapPixelHeight = imageHeight * effectiveDisplayScale;
+  const gridUnitsW = mapPixelWidth / gridPixels;
+  const gridUnitsH = mapPixelHeight / gridPixels;
 
   useEffect(() => {
     setGridSize(map.gridSize || 50);
@@ -67,9 +75,9 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     setGridOffsetY(map.gridOffsetY || 0);
     setGridColor(map.gridColor || 'rgba(255,255,255,0.15)');
     setGridLineWidth(map.gridLineWidth || 1);
-    setMapW(map.width || 30);
-    setMapH(map.height || 20);
-  }, [map.gridSize, map.gridOffsetX, map.gridOffsetY, map.gridColor, map.gridLineWidth, map.width, map.height]);
+    setMapW(Math.round(gridUnitsW));
+    setMapH(Math.round(gridUnitsH));
+  }, [map.gridSize, map.gridOffsetX, map.gridOffsetY, map.gridColor, map.gridLineWidth, map.width, map.height, map.imageWidth, map.imageHeight, map.displayScale, gridUnitsW, gridUnitsH]);
 
   // Initialize fog canvas from stored fogData (transparent = no fog = fully revealed)
   useEffect(() => {
@@ -143,6 +151,24 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     socket.on('map:viewport:sync', handler);
     return () => { socket.off('map:viewport:sync', handler); };
   }, [socket, map.id]);
+
+  // Fullscreen toggle
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      el.requestFullscreen();
+    }
+  }, []);
+
+  // Sync fullscreen state with native events
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
 
   const emitViewport = useCallback(() => {
     if (!syncViewEnabled || !isDM) return;
@@ -631,7 +657,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
       campaignId: map.campaignId,
       grid: { gridSize, gridOffsetX, gridOffsetY, gridColor, gridLineWidth },
     });
-    updateMap(map.id, { width: mapW, height: mapH, gridColor, gridLineWidth });
+    updateMap(map.id, { width: mapW, height: mapH, gridColor, gridLineWidth, displayScale });
     setShowGridSettings(false);
   };
 
@@ -662,7 +688,6 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
             transformOrigin: '0 0',
             pointerEvents: 'none',
-            objectFit: 'fill',
             transition: isAnimating ? 'transform 150ms ease-out' : 'none',
           }}
         />
@@ -763,7 +788,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
             {(() => {
               const linkedChar = token.characterId ? characters.find((c) => c.id === token.characterId) : null;
               const portraitUrl = linkedChar?.imageUrl || token.imageUrl;
-              const size = Math.max(24, token.width * gridPixels * scale);
+              const size = Math.max(24, gridPixels * scale);
               return portraitUrl ? (
                 <div
                   className={`rounded-full border-2 overflow-hidden ${
@@ -1028,6 +1053,17 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
         >
           Reset
         </button>
+        <button
+          onClick={toggleFullscreen}
+          className={`w-8 h-8 rounded text-xs font-bold flex items-center justify-center transition-colors ${
+            isFullscreen
+              ? 'bg-dnd-primary text-white'
+              : 'bg-dnd-surface border border-dnd-accent text-white hover:bg-dnd-accent'
+          }`}
+          title="网页全屏"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+        </button>
         {isDM && (
           <>
             <button
@@ -1237,6 +1273,18 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
               />
               <div className="flex justify-between text-xs text-dnd-muted">
                 <span>1</span><span>{gridLineWidth}px</span><span>5</span>
+              </div>
+            </div>
+
+            {/* Display Scale */}
+            <div>
+              <label className="block text-xs text-dnd-muted mb-1">Display Scale ({effectiveDisplayScale.toFixed(1)}x)</label>
+              <input type="range" min={0.5} max={3.0} step={0.1} value={displayScale}
+                onChange={(e) => setDisplayScale(parseFloat(e.target.value))}
+                className="w-full accent-dnd-primary"
+              />
+              <div className="flex justify-between text-xs text-dnd-muted">
+                <span>0.5x</span><span>3.0x</span>
               </div>
             </div>
 
