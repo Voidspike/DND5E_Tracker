@@ -1,5 +1,5 @@
 {
-  "name": "dnd-visualizer",
+  "name": "dnd5e-tracker",
   "private": true,
   "workspaces": [
     "shared",

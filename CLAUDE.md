@@ -1,8 +1,8 @@
-# CLAUDE.md — DND Campaign Visualizer
+# CLAUDE.md — DND5E Tracker
 
 ## Project Overview
 
-A web-based real-time multiplayer D&D campaign visualizer. DM controls maps, tokens, combat, and game state. Players join via invite code and control their characters. Everything syncs via WebSocket.
+A web-based real-time multiplayer D&D 5E campaign tracker. DM controls maps, tokens, combat, and game state. Players join via invite code and control their characters. Everything syncs via WebSocket.
 
 **Grid scale**: 1 grid cell = 5 feet (standard D&D 5E scale).
 
