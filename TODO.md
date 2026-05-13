@@ -51,7 +51,7 @@
 - [x] **角色卡创建/删除**：玩家可创建角色，拥有者/DM可删除
 
 ### 骰子系统
-- [ ] **骰子投掷动画**：3D CSS 或 Canvas
+- [x] **骰子投掷动画**：骰子翻滚 + 结果弹出（投骰时触发）
 - [x] **骰子组合**：Multi Mode（如 2d6+1d8）
 - [x] **快捷预设**：localStorage 保存/加载投骰公式
 
@@ -106,16 +106,16 @@
 - [x] **环境变量治理**：.env.example 更新（LOG_LEVEL/CORS_ORIGINS/Docker 覆盖）
 
 ### 代码质量
-- [ ] **TypeScript 严格 any 消除**：API + stores 已处理，组件仍有残留
+- [x] **TypeScript 严格 any 消除**：72→14 处（-80%），剩余为 window/Prisma 边界
 - [x] **API 错误统一处理**：全局 error handler（AppError + Zod + Prisma 异常）
 - [x] **Rate limiting**：全局 100req/min + 登录 20req/min
 - [x] **日志系统**：结构化 JSON logger（LOG_LEVEL 环境变量控制）
 - [x] **Zod schema 全覆盖**：spell + combat 路由补上 Zod 校验
 
 ### 安全
-- [ ] **输入消毒**：XSS 防护
-- [ ] **CORS 加固**：生产环境严格配置
-- [ ] **密码策略**：强度要求、重试限制
+- [x] **输入消毒**：XSS 防护（全局 HTML 标签过滤中间件）
+- [x] **CORS 加固**：生产环境必须显式设置 CORS_ORIGINS
+- [ ] ~~密码策略~~ (不做)
 - [x] **WebSocket 认证校验**：combat/map/token 操作均校验 DM 或 owner 权限
 
 ---

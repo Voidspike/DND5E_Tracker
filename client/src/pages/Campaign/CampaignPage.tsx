@@ -12,6 +12,7 @@ import ChatPanel from '../../components/chat/ChatPanel';
 import CharacterSheet from '../../components/character/CharacterSheet';
 import CharacterList from '../../components/character/CharacterList';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import DiceAnimation from '../../components/dice/DiceAnimation';
 
 type Tab = 'map' | 'combat' | 'dice' | 'chat';
 
@@ -734,6 +735,7 @@ export default function CampaignPage() {
           />
         </div>
       )}
+      <DiceAnimation />
     </div>
   );
 }

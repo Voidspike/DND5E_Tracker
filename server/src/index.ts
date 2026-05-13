@@ -14,6 +14,7 @@ import spellRoutes from './routes/spell';
 import uploadRoutes from './routes/upload';
 import { errorHandler } from './middleware/errorHandler';
 import { globalLimiter, authLimiter } from './middleware/rateLimiter';
+import { sanitizeBody } from './middleware/sanitize';
 import { logger } from './utils/logger';
 
 const app = express();
@@ -22,6 +23,7 @@ const httpServer = createServer(app);
 // Middleware
 app.use(cors({ origin: config.corsOrigins, credentials: true }));
 app.use(express.json());
+app.use(sanitizeBody);
 app.use(globalLimiter);
 
 // Serve uploaded files
