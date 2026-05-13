@@ -11,7 +11,7 @@ interface CombatTrackerProps {
   userId?: string;
   socket: Socket;
   campaignId: string;
-  tokens: any[];
+  tokens: import('@dnd/shared').Token[];
 }
 
 const COMBAT_ACTIONS: { key: string; label: string; color: string }[] = [
@@ -43,10 +43,10 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
   const isActive = status === 'active';
   const isPaused = status === 'paused';
 
-  const sortedParticipants = [...participants].sort((a: any, b: any) => b.initiative - a.initiative);
+  const sortedParticipants = [...participants].sort((a, b) => b.initiative - a.initiative);
 
-  const activeParticipant = participants.find((p: any) => p.isActiveTurn);
-  const activeToken = activeParticipant ? tokens.find((t: any) => t.id === activeParticipant.tokenId) : null;
+  const activeParticipant = participants.find((p) => p.isActiveTurn);
+  const activeToken = activeParticipant ? tokens.find((t) => t.id === activeParticipant.tokenId) : null;
   const activeSpeed = activeToken?.speed || 30;
   const activeMovementUsed = activeToken ? (tokenMovementUsed[activeToken.id] || 0) : 0;
 
@@ -103,7 +103,7 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
 
     // Spell action opens selector if character has spells
     if (actionKey === 'spell' && activeToken.characterId) {
-      const char = characters.find((c: any) => c.id === activeToken.characterId);
+      const char = characters.find((c) => c.id === activeToken.characterId);
       if (char) {
         setShowSpellSelector(true);
         return;
@@ -129,7 +129,7 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
       const newHp = Math.max(0, (activeToken.hpCurrent || 0) + hpDelta);
       updateToken(activeToken.id, { hpCurrent: newHp }).catch(console.error);
       if (activeToken.characterId) {
-        updateCharacter(activeToken.characterId, { hpCurrent: newHp } as any)
+        updateCharacter(activeToken.characterId, { hpCurrent: newHp })
           .then((updated) => {
             if (updated) socket.emit('character:update', { characterId: activeToken.characterId, updates: { hpCurrent: newHp } });
           })
@@ -277,8 +277,8 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
       {/* ── Initiative List (all phases) ── */}
       <div className="space-y-1">
         <h3 className="text-xs font-semibold text-dnd-muted">先攻顺序 ({participants.length})</h3>
-        {sortedParticipants.map((p: any, index: number) => {
-          const ptoken = tokens.find((t: any) => t.id === p.tokenId);
+        {sortedParticipants.map((p, index) => {
+          const ptoken = tokens.find((t) => t.id === p.tokenId);
           const isTurnActive = p.isActiveTurn && isActive;
           const isTargeted = combatTargetTokenId === p.tokenId && !isTurnActive;
           return (
@@ -341,8 +341,8 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
 
       {/* ── Target Token Panel (DM only, active mode) ── */}
       {isDM && isActive && combatTargetTokenId && (() => {
-        const targetToken = tokens.find((t: any) => t.id === combatTargetTokenId);
-        const targetParticipant = participants.find((p: any) => p.tokenId === combatTargetTokenId);
+        const targetToken = tokens.find((t) => t.id === combatTargetTokenId);
+        const targetParticipant = participants.find((p) => p.tokenId === combatTargetTokenId);
         if (!targetToken) return null;
         return (
           <div className="bg-orange-500/10 border border-orange-500/40 rounded-lg p-3 space-y-2">
@@ -368,7 +368,7 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
                       updateToken(targetToken.id, { hpCurrent: newHp });
                       socket.emit('token:update', { campaignId, tokenId: targetToken.id, updates: { hpCurrent: newHp } });
                       if (targetToken.characterId) {
-                        updateCharacter(targetToken.characterId, { hpCurrent: newHp } as any)
+                        updateCharacter(targetToken.characterId, { hpCurrent: newHp })
                           .then((u) => { if (u) socket.emit('character:update', { characterId: targetToken.characterId, updates: { hpCurrent: newHp } }); })
                           .catch(console.error);
                       }
@@ -388,7 +388,7 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
                           updateToken(targetToken.id, { hpCurrent: finalHp });
                           socket.emit('token:update', { campaignId, tokenId: targetToken.id, updates: { hpCurrent: finalHp } });
                           if (targetToken.characterId) {
-                            updateCharacter(targetToken.characterId, { hpCurrent: finalHp } as any)
+                            updateCharacter(targetToken.characterId, { hpCurrent: finalHp })
                               .then((u) => { if (u) socket.emit('character:update', { characterId: targetToken.characterId, updates: { hpCurrent: finalHp } }); })
                               .catch(console.error);
                           }
@@ -399,11 +399,11 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
                   >编辑</button>
                   <button
                     onClick={() => {
-                      const newHp = Math.min(targetToken.hpMax, (targetToken.hpCurrent || 0) + 5);
+                      const newHp = Math.min(targetToken.hpMax!, (targetToken.hpCurrent || 0) + 5);
                       updateToken(targetToken.id, { hpCurrent: newHp });
                       socket.emit('token:update', { campaignId, tokenId: targetToken.id, updates: { hpCurrent: newHp } });
                       if (targetToken.characterId) {
-                        updateCharacter(targetToken.characterId, { hpCurrent: newHp } as any)
+                        updateCharacter(targetToken.characterId, { hpCurrent: newHp })
                           .then((u) => { if (u) socket.emit('character:update', { characterId: targetToken.characterId, updates: { hpCurrent: newHp } }); })
                           .catch(console.error);
                       }
@@ -427,7 +427,7 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
           {combatLog.length === 0 ? (
             <p className="text-center text-dnd-muted text-xs py-2">暂无事件</p>
           ) : (
-            combatLog.map((entry: any, i: number) => (
+            combatLog.map((entry, i) => (
               <div key={i} className="text-xs flex items-start gap-2 py-0.5">
                 <span className="text-dnd-muted shrink-0 font-mono">R{entry.round}</span>
                 <span className={entry.type === 'action' ? 'text-dnd-accent' : 'text-dnd-text'}>{entry.message}</span>
@@ -438,13 +438,17 @@ export default function CombatTracker({ isDM, userId, socket, campaignId, tokens
       </div>
 
       {/* ── Spell Selector ── */}
-      {showSpellSelector && activeToken?.characterId && (
+      {showSpellSelector && activeToken?.characterId && (() => {
+        const char = characters.find((c) => c.id === activeToken.characterId);
+        if (!char) return null;
+        return (
         <SpellSelector
-          character={characters.find((c: any) => c.id === activeToken.characterId)}
+          character={char}
           onSelect={handleSpellSelect}
           onClose={() => setShowSpellSelector(false)}
         />
-      )}
+        );
+      })()}
 
       {/* ── End Combat Dialog ── */}
       {showEndDialog && (

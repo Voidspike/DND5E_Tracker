@@ -45,7 +45,7 @@ export default function CampaignPage() {
   const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   const isDM = currentCampaign?.dmId === user?.id;
-  const isPlayer = !isDM && currentCampaign?.players?.some((p: any) => p.userId === user?.id);
+  const isPlayer = !isDM && currentCampaign?.players?.some((p) => p.userId === user?.id);
 
   useEffect(() => {
     if (id) {
@@ -58,7 +58,7 @@ export default function CampaignPage() {
   const currentMap = maps.find((m) => m.id === currentMapId) || maps[0];
 
   // Only pass tokens belonging to the current map
-  const currentMapTokens = currentMap ? tokens.filter((t: any) => t.mapId === currentMap.id) : [];
+  const currentMapTokens = currentMap ? tokens.filter((t) => t.mapId === currentMap.id) : [];
 
   useEffect(() => {
     if (currentMap?.id) {
@@ -250,8 +250,8 @@ export default function CampaignPage() {
                 </div>
               </div>
               {/* Online Players */}
-              {onlinePlayers.filter((p: any) => p.userId !== currentCampaign?.dmId).map((p: any) => {
-                const char = characters.find((c: any) => c.userId === p.userId);
+              {onlinePlayers.filter((p) => p.userId !== currentCampaign?.dmId).map((p) => {
+                const char = characters.find((c) => c.userId === p.userId);
                 return (
                   <div key={p.userId} className="flex items-center gap-2 text-sm">
                     <div className="w-6 h-6 bg-dnd-accent/40 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
@@ -316,7 +316,7 @@ export default function CampaignPage() {
               <div className="mt-4 pt-4 border-t border-dnd-accent/50">
                 <p className="text-xs text-dnd-muted mb-2">Current Players</p>
                 <div className="space-y-1.5">
-                  {allPlayers.map((p: any) => (
+                  {allPlayers.map((p) => (
                     <div key={p.userId} className="flex items-center gap-2 text-sm">
                       <div className="w-6 h-6 bg-dnd-accent/40 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
                         {p.user?.username?.charAt(0).toUpperCase() || '?'}
@@ -622,7 +622,7 @@ export default function CampaignPage() {
       {/* Map Switcher */}
       {maps.length > 1 && activeTab === 'map' && (
         <div className="bg-dnd-surface/60 border-b border-dnd-accent/30 px-3 sm:px-4 py-1.5 flex gap-1.5 overflow-x-auto shrink-0">
-          {maps.map((m: any) => (
+          {maps.map((m) => (
             <button
               key={m.id}
               onClick={() => setCurrentMapId(m.id)}

@@ -5,7 +5,7 @@ import type { SpellData } from './SpellTooltip';
 import SpellTooltip from './SpellTooltip';
 
 interface SpellSelectorProps {
-  character: any;
+  character: { class: string; name: string; spells?: unknown };
   onSelect: (spell: SpellData) => void;
   onClose: () => void;
 }

@@ -27,8 +27,8 @@ export default function ChatPanel({ socket, campaignId, isDM }: ChatPanelProps) 
 
   // Listen for incoming whispers
   useEffect(() => {
-    const handler = (msg: any) => {
-      addChatMessage({ ...msg, type: 'whisper' as any });
+    const handler = (msg: { id: string; userId: string; username: string; content: string; type: string; createdAt: string }) => {
+      addChatMessage({ ...msg, type: 'whisper' as const });
     };
     socket.on('chat:whisper', handler);
     return () => { socket.off('chat:whisper', handler); };
@@ -58,7 +58,7 @@ export default function ChatPanel({ socket, campaignId, isDM }: ChatPanelProps) 
     }
   };
 
-  const getMessageStyle = (msg: any) => {
+  const getMessageStyle = (msg: { type: string; isPrivate?: boolean }) => {
     if (msg.type === 'system') return 'border-l-2 border-yellow-500/60 bg-yellow-500/5 italic text-center';
     if (msg.type === 'dice') return 'border-l-2 border-blue-500/60 bg-blue-500/5';
     if (msg.isPrivate || msg.type === 'whisper') return 'border-l-2 border-purple-500/60 bg-purple-500/5';

@@ -354,35 +354,41 @@ export function setupSocket(httpServer: HTTPServer): Server {
       });
       if (!combat || combat.participants.length === 0) return;
 
-      // Clear isActiveTurn on all participants
+      // Sort by initiative descending for correct turn order
+      const sorted = [...combat.participants].sort((a, b) => b.initiative - a.initiative);
+      const currentId = sorted[combat.currentTurnIndex]?.id;
+      const nextIndex = (combat.currentTurnIndex + 1) % sorted.length;
+      const isNewRound = nextIndex === 0;
+
+      // Clear all active turns
       await prisma.combatParticipant.updateMany({
         where: { combatId },
         data: { isActiveTurn: false },
       });
 
-      const prevIndex = combat.currentTurnIndex;
-      const nextIndex = (prevIndex + 1) % combat.participants.length;
+      // Set the next participant as active
+      await prisma.combatParticipant.update({
+        where: { id: sorted[nextIndex].id },
+        data: { isActiveTurn: true },
+      });
+
       const updated = await prisma.combatTracker.update({
         where: { id: combatId },
         data: {
           currentTurnIndex: nextIndex,
-          round: nextIndex === 0 ? combat.round + 1 : combat.round,
+          round: isNewRound ? combat.round + 1 : combat.round,
         },
         include: { participants: true },
       });
-      // Set isActiveTurn on the current participant
-      if (updated.participants.length > 0) {
-        await prisma.combatParticipant.update({
-          where: { id: updated.participants[nextIndex].id },
-          data: { isActiveTurn: true },
-        });
-        updated.participants = updated.participants.map((p, i) => ({
-          ...p,
-          isActiveTurn: i === nextIndex,
-        }));
-      }
-      const currentParticipant = updated.participants[nextIndex];
-      const label = currentParticipant?.label || currentParticipant?.tokenId?.slice(0, 8) || 'Unknown';
+
+      // Map participants to reflect sorted order with isActiveTurn flags
+      updated.participants = updated.participants.map((p) => ({
+        ...p,
+        isActiveTurn: p.id === sorted[nextIndex].id,
+      }));
+
+      const cp = updated.participants.find((p: any) => p.id === sorted[nextIndex].id);
+      const label = cp?.label || cp?.tokenId?.slice(0, 8) || 'Unknown';
       io.to(`campaign:${socket.campaignId}`).emit('combat:next_turn', updated as any);
       appendCombatLog(combatId, socket.campaignId!, 'turn', `Round ${updated.round} — ${label}'s turn`, updated.round);
     });
@@ -395,28 +401,34 @@ export function setupSocket(httpServer: HTTPServer): Server {
       });
       if (!combat || combat.participants.length === 0) return;
 
+      // Sort by initiative descending for correct turn order
+      const sorted = [...combat.participants].sort((a, b) => b.initiative - a.initiative);
+      const prevIndex = (combat.currentTurnIndex - 1 + sorted.length) % sorted.length;
+
+      // Clear all active turns
       await prisma.combatParticipant.updateMany({
         where: { combatId },
         data: { isActiveTurn: false },
       });
 
-      const prevIndex = (combat.currentTurnIndex - 1 + combat.participants.length) % combat.participants.length;
+      // Set the previous participant as active
+      await prisma.combatParticipant.update({
+        where: { id: sorted[prevIndex].id },
+        data: { isActiveTurn: true },
+      });
+
       const updated = await prisma.combatTracker.update({
         where: { id: combatId },
         data: { currentTurnIndex: prevIndex },
         include: { participants: true },
       });
-      if (updated.participants.length > 0) {
-        await prisma.combatParticipant.update({
-          where: { id: updated.participants[prevIndex].id },
-          data: { isActiveTurn: true },
-        });
-        updated.participants = updated.participants.map((p, i) => ({
-          ...p,
-          isActiveTurn: i === prevIndex,
-        }));
-      }
-      const cp = updated.participants[prevIndex];
+
+      updated.participants = updated.participants.map((p) => ({
+        ...p,
+        isActiveTurn: p.id === sorted[prevIndex].id,
+      }));
+
+      const cp = updated.participants.find((p: any) => p.id === sorted[prevIndex].id);
       const plabel = cp?.label || cp?.tokenId?.slice(0, 8) || 'Unknown';
       io.to(`campaign:${socket.campaignId}`).emit('combat:prev_turn', updated as any);
       appendCombatLog(combatId, socket.campaignId!, 'turn', `Round ${updated.round} — ${plabel}'s turn`, updated.round);

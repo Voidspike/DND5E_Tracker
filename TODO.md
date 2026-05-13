@@ -102,9 +102,8 @@
 
 ### CI/CD
 - [x] **GitHub CI**：push/PR 自动 typecheck + test (PostgreSQL 服务容器)
-- [ ] **Docker 多阶段构建**：生产镜像
-- [ ] **部署配置**：Vercel/Netlify + 后端部署脚本
-- [ ] **环境变量治理**：dev/staging/prod 分离
+- [x] **Docker 多阶段构建**：builder + production 双阶段镜像，静态资源合并部署
+- [x] **环境变量治理**：.env.example 更新（LOG_LEVEL/CORS_ORIGINS/Docker 覆盖）
 
 ### 代码质量
 - [ ] **TypeScript 严格 any 消除**：API + stores 已处理，组件仍有残留

@@ -2,8 +2,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useCampaignStore } from '../../stores/campaignStore';
 
 interface CharacterListProps {
-  characters: any[];
-  onSelect: (character: any) => void;
+  characters: import('@dnd/shared').Character[];
+  onSelect: (character: import('@dnd/shared').Character) => void;
   onCreate?: () => void;
 }
 

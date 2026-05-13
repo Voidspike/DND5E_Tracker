@@ -88,7 +88,7 @@ export const useGameStore = create<GameState>((set) => ({
   setOnlinePlayers: (players) => set({ onlinePlayers: players }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
   setCombatTracker: (tracker) => set((s) => {
-    const resolved = typeof tracker === 'function' ? (tracker as any)(s.combatTracker) : tracker;
+    const resolved = typeof tracker === 'function' ? (tracker as (prev: CombatTracker | null) => CombatTracker | null)(s.combatTracker) : tracker;
     const log = resolved?.log;
     const safeLog = Array.isArray(log) ? log : (typeof log === 'string' ? (() => { try { const p = JSON.parse(log); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
     return { combatTracker: resolved, combatLog: safeLog, tokenMovementUsed: resolved ? s.tokenMovementUsed : {} };

@@ -12,8 +12,8 @@ const TOKEN_TYPES = [
 ] as const;
 
 interface MapViewProps {
-  map: any;
-  tokens: any[];
+  map: import('@dnd/shared').MapData;
+  tokens: import('@dnd/shared').Token[];
   isDM: boolean;
   userId?: string;
   socket: Socket;
@@ -199,12 +199,12 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
 
   // Compute active turn token ID from combat tracker
   const activeTurnTokenId = combatMode && combatTracker
-    ? combatTracker.participants.find((p: any) => p.isActiveTurn)?.tokenId || null
+    ? combatTracker.participants.find((p) => p.isActiveTurn)?.tokenId || null
     : null;
 
   // Pan to a token (smoothly center on it without changing zoom)
   const panToToken = useCallback((tokenId: string) => {
-    const token = tokens.find((t: any) => t.id === tokenId);
+    const token = tokens.find((t) => t.id === tokenId);
     if (!token || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const cx = rect.width / 2;
@@ -304,7 +304,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
       let newY = coords.y - dragTokenOffset.y;
       // Speed limit in combat mode
       if (combatMode) {
-        const draggedToken = tokens.find((t: any) => t.id === dragTokenId);
+        const draggedToken = tokens.find((t) => t.id === dragTokenId);
         if (draggedToken) {
           const speed = draggedToken.speed || 30;
           const maxGrids = speed / 5;
@@ -367,7 +367,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
       const touch = e.touches[0];
       const pos = getTouchPos(touch);
       // Check if touching a token
-      const touchedToken = tokens.find((t: any) => {
+      const touchedToken = tokens.find((t) => {
         if (t.mapId !== map.id) return false;
         if (!isDM && t.isHidden) return false;
         const tx = t.x * gridPixels * scale + offset.x;
@@ -422,7 +422,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
       let newX = coords.x - dragTokenOffset.x;
       let newY = coords.y - dragTokenOffset.y;
       if (combatMode) {
-        const draggedToken = tokens.find((t: any) => t.id === dragTokenId);
+        const draggedToken = tokens.find((t) => t.id === dragTokenId);
         if (draggedToken) {
           const speed = draggedToken.speed || 30;
           const maxGrids = speed / 5;
@@ -550,9 +550,9 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     const coords = getGridCoords(e.clientX, e.clientY);
 
     const typeDef = TOKEN_TYPES.find((t) => t.value === createTokenType);
-    const tokenData: any = {
+    const tokenData: import('@dnd/shared').CreateTokenRequest & { ownerId?: string } = {
       mapId: map.id,
-      type: createTokenType,
+      type: createTokenType as import('@dnd/shared').CreateTokenRequest['type'],
       name: typeDef?.label || 'New Token',
       x: coords.x,
       y: coords.y,
@@ -565,13 +565,13 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     socket.emit('token:create', { campaignId: map.campaignId, token: created });
   };
 
-  const handleTokenMouseDown = (e: React.MouseEvent, token: any) => {
+  const handleTokenMouseDown = (e: React.MouseEvent, token: import('@dnd/shared').Token) => {
     e.stopPropagation();
     if (e.button !== 0) return;
 
     // In active combat mode: clicking a participant sets it as target
     if (isDM && combatTracker && combatTracker.status === 'active') {
-      const participant = combatTracker.participants.find((p: any) => p.tokenId === token.id);
+      const participant = combatTracker.participants.find((p) => p.tokenId === token.id);
       if (participant) {
         if (participant.isActiveTurn) {
           setCombatTargetTokenId(null);
@@ -598,7 +598,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     socket.emit('token:select', token.id);
   };
 
-  const handleHPChange = async (token: any, delta: number) => {
+  const handleHPChange = async (token: import('@dnd/shared').Token, delta: number) => {
     const newHp = Math.max(0, (token.hpCurrent || 0) + delta);
     await updateToken(token.id, { hpCurrent: newHp });
     socket.emit('token:update', {
@@ -608,7 +608,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     });
     // Sync HP to linked character
     if (token.characterId) {
-      updateCharacter(token.characterId, { hpCurrent: newHp } as any)
+      updateCharacter(token.characterId, { hpCurrent: newHp })
         .then((updated) => {
           if (updated) socket.emit('character:update', { characterId: token.characterId, updates: { hpCurrent: newHp } });
         })
@@ -616,7 +616,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
     }
   };
 
-  const handleToggleHidden = async (token: any) => {
+  const handleToggleHidden = async (token: import('@dnd/shared').Token) => {
     await updateToken(token.id, { isHidden: !token.isHidden });
     socket.emit('token:update', {
       campaignId: map.campaignId,
@@ -761,7 +761,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
           }}>
             {/* Token Circle / Portrait */}
             {(() => {
-              const linkedChar = token.characterId ? characters.find((c: any) => c.id === token.characterId) : null;
+              const linkedChar = token.characterId ? characters.find((c) => c.id === token.characterId) : null;
               const portraitUrl = linkedChar?.imageUrl || token.imageUrl;
               const size = Math.max(24, token.width * gridPixels * scale);
               return portraitUrl ? (
@@ -866,7 +866,7 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
 
       {/* Context Menu */}
       {contextMenu && (() => {
-        const ctxToken = tokens.find((t: any) => t.id === contextMenu.tokenId);
+        const ctxToken = tokens.find((t) => t.id === contextMenu.tokenId);
         if (!ctxToken) return null;
         return (
           <div
@@ -957,13 +957,13 @@ export default function MapView({ map, tokens, isDM, userId, socket, selectedTok
           {isDM && selectedTokenId && (
             <button
               onClick={() => {
-                const token = tokens.find((t: any) => t.id === selectedTokenId);
+                const token = tokens.find((t) => t.id === selectedTokenId);
                 if (token) handleToggleHidden(token);
               }}
               className="text-dnd-muted hover:text-dnd-text px-1.5 py-1 rounded text-xs"
               title="Toggle visibility"
             >
-              {tokens.find((t: any) => t.id === selectedTokenId)?.isHidden ? '👁‍🗨' : '👁'}
+              {tokens.find((t) => t.id === selectedTokenId)?.isHidden ? '👁‍🗨' : '👁'}
             </button>
           )}
           {isDM && (

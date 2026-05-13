@@ -40,7 +40,7 @@ interface CampaignState {
   fetchTokensByCampaign: (campaignId: string) => Promise<void>;
   createToken: (data: CreateTokenRequest) => Promise<Token>;
   updateToken: (id: string, data: UpdateTokenRequest) => Promise<void>;
-  syncToken: (token: any) => void;
+  syncToken: (token: Partial<Token> & { id: string }) => void;
   removeToken: (id: string) => void;
   deleteToken: (id: string) => Promise<void>;
 
@@ -48,7 +48,7 @@ interface CampaignState {
   createCharacter: (data: CreateCharacterRequest) => Promise<Character>;
   updateCharacter: (id: string, data: Partial<Character>) => Promise<Character>;
   deleteCharacter: (id: string) => Promise<void>;
-  syncCharacter: (character: any) => void;
+  syncCharacter: (character: Partial<Character> & { id: string }) => void;
 }
 
 export const useCampaignStore = create<CampaignState>((set, get) => ({
@@ -173,9 +173,9 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set((s) => {
       const exists = s.tokens.some((t) => t.id === token.id);
       if (exists) {
-        return { tokens: s.tokens.map((t) => (t.id === token.id ? { ...t, ...token } : t)) };
+        return { tokens: s.tokens.map((t) => (t.id === token.id ? { ...t, ...token } as Token : t)) };
       }
-      return { tokens: [...s.tokens, token] };
+      return { tokens: [...s.tokens, token as Token] };
     });
   },
 
@@ -221,9 +221,9 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set((s) => {
       const exists = s.characters.some((c) => c.id === character.id);
       if (exists) {
-        return { characters: s.characters.map((c) => (c.id === character.id ? { ...c, ...character } : c)) };
+        return { characters: s.characters.map((c) => (c.id === character.id ? { ...c, ...character } as Character : c)) };
       }
-      return { characters: [...s.characters, character] };
+      return { characters: [...s.characters, character as Character] };
     });
   },
 }));

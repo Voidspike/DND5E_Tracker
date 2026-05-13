@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { connectSocket, disconnectSocket, getSocket } from '../services/socket';
 import { useGameStore } from '../stores/gameStore';
 import { useCampaignStore } from '../stores/campaignStore';
+import type { CombatTracker, CombatParticipant, Token, Character } from '@dnd/shared';
 
 export function useSocket(campaignId?: string) {
   const token = useAuthStore((s) => s.token);
@@ -34,23 +35,23 @@ export function useSocket(campaignId?: string) {
     socket.on('dice:roll', addDiceRoll);
     socket.on('dice:roll_private', addDiceRoll);
     socket.on('map:fog:update', (data: string) => setFogData(data));
-    socket.on('combat:start', (combat: any) => { setCombatTracker(combat); setCombatMode(true); });
-    socket.on('combat:next_turn', (combat: any) => setCombatTracker(combat));
-    socket.on('combat:prev_turn', (combat: any) => setCombatTracker(combat));
+    socket.on('combat:start', (combat: CombatTracker) => { setCombatTracker(combat); setCombatMode(true); });
+    socket.on('combat:next_turn', (combat: CombatTracker) => setCombatTracker(combat));
+    socket.on('combat:prev_turn', (combat: CombatTracker) => setCombatTracker(combat));
     socket.on('combat:end', () => { setCombatTracker(null); setCombatMode(false); setCombatTargetTokenId(null); });
     socket.on('combat:update_name', (data: { combatId: string; name: string }) => {
-      setCombatTracker((prev: any) => prev ? { ...prev, name: data.name } : null);
+      setCombatTracker((prev) => prev ? { ...prev, name: data.name } as CombatTracker : null);
     });
-    socket.on('combat:add', (participant: any) => addCombatParticipant(participant));
+    socket.on('combat:add', (participant: CombatParticipant) => addCombatParticipant(participant));
     socket.on('combat:remove', (participantId: string) => removeCombatParticipant(participantId));
-    socket.on('combat:initiative:update', (participant: any) => updateCombatParticipant(participant));
-    socket.on('token:update', (token: any) => syncToken(token));
-    socket.on('token:move', (data: any) => syncToken({ id: data.id, x: data.x, y: data.y }));
-    socket.on('token:create', (token: any) => syncToken(token));
+    socket.on('combat:initiative:update', (participant: CombatParticipant) => updateCombatParticipant(participant));
+    socket.on('token:update', (t: Token) => syncToken(t));
+    socket.on('token:move', (data: { id: string; x: number; y: number }) => syncToken(data));
+    socket.on('token:create', (t: Token) => syncToken(t));
     socket.on('token:delete', (id: string) => removeToken(id));
     socket.on('token:select', (id: string | null) => setSelectedTokenId(id));
-    socket.on('character:update', (character: any) => syncCharacter(character));
-    socket.on('combat:log', (entry: any) => addCombatLogEntry(entry));
+    socket.on('character:update', (c: Character) => syncCharacter(c));
+    socket.on('combat:log', (entry: { type: string; message: string; round: number; timestamp: string }) => addCombatLogEntry(entry));
 
     socket.emit('room:join', campaignId);
 

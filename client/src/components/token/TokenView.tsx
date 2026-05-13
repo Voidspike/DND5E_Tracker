@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Socket } from 'socket.io-client';
+import type { Token, Character } from '@dnd/shared';
 import { useCampaignStore } from '../../stores/campaignStore';
 
 interface TokenViewProps {
-  token: any;
+  token: Token | undefined;
   isDM: boolean;
   userId?: string;
   socket: Socket;
@@ -23,7 +24,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
   const canEdit = isDM || token.ownerId === userId;
 
   const handleSave = async () => {
-    const updates: any = {};
+    const updates: Record<string, unknown> = {};
     if (name !== token.name) updates.name = name;
     if (hp !== token.hpCurrent?.toString()) updates.hpCurrent = parseInt(hp) || null;
     if (hpMax !== token.hpMax?.toString()) updates.hpMax = parseInt(hpMax) || null;
@@ -33,7 +34,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
       socket.emit('token:update', { campaignId: token.campaignId, tokenId: token.id, updates });
       // Sync HP to linked character
       if (token.characterId && (updates.hpCurrent !== undefined || updates.hpMax !== undefined)) {
-        const charUpdates: any = {};
+        const charUpdates: Record<string, unknown> = {};
         if (updates.hpCurrent !== undefined) charUpdates.hpCurrent = updates.hpCurrent;
         if (updates.hpMax !== undefined) charUpdates.hpMax = updates.hpMax;
         updateCharacter(token.characterId, charUpdates).catch(console.error);
@@ -49,7 +50,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
     socket.emit('token:move', { tokenId: token.id, x: newX, y: newY });
   };
 
-  const linkedChar = token.characterId ? characters.find((c: any) => c.id === token.characterId) : null;
+  const linkedChar = token.characterId ? characters.find((c) => c.id === token.characterId) : null;
   const portraitUrl = linkedChar?.imageUrl || token.imageUrl;
 
   return (
@@ -123,7 +124,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
                 setLinking(true);
                 try {
                   if (charId) {
-                    const char = characters.find((c: any) => c.id === charId);
+                    const char = characters.find((c) => c.id === charId);
                     if (!char) return;
                     const updates: Record<string, unknown> = {
                       characterId: charId,
@@ -153,7 +154,7 @@ export default function TokenView({ token, isDM, userId, socket }: TokenViewProp
               className="w-full bg-dnd-bg border border-dnd-accent rounded px-2 py-1 text-sm"
             >
               <option value="">None</option>
-              {characters.map((c: any) => (
+              {characters.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} (Lv{c.level} {c.class})
                 </option>
