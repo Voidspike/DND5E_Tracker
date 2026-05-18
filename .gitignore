@@ -5,6 +5,8 @@ dist/
 .DS_Store
 .cache/
 .claude/
+CLAUDE.md
+TODO.md
 *.tsbuildinfo
 shared/types/index.js
 shared/types/index.d.ts
