@@ -32,6 +32,8 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Serve client static files in production
 if (config.nodeEnv === 'production') {
+  // __dirname = server/dist/server/src/ due to rootDir:".."
+  // Go up 4 levels to project root, then client/dist
   const clientDist = path.resolve(__dirname, '../../../../client/dist');
   app.use(express.static(clientDist));
   // SPA fallback: redirect all non-API routes to index.html

@@ -127,7 +127,6 @@ export function setupSocket(httpServer: HTTPServer): Server {
     // Token move: final position save + broadcast (DM or token owner)
     socket.on('token:move', async (data) => {
       if (!socket.campaignId || !(await canModifyToken(data.tokenId))) return;
-      if (!socket.campaignId) return;
       prisma.token
         .update({ where: { id: data.tokenId }, data: { x: data.x, y: data.y } })
         .catch(console.error);

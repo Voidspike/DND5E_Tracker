@@ -4,6 +4,13 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Skip if seed data already exists
+  const existingUser = await prisma.user.findFirst({ where: { email: 'dm@example.com' } });
+  if (existingUser) {
+    console.log('Seed data already exists, skipping.');
+    return;
+  }
+
   const password = await bcrypt.hash('password123', 10);
 
   const dm = await prisma.user.upsert({
