@@ -20,54 +20,116 @@
 
 ## 快速启动
 
-### 1. 前置要求
+### 前置要求
 
 - [Node.js](https://nodejs.org) >= 18（建议 LTS v20.x）
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)（用于启动 PostgreSQL + Redis）
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)（用于启动 PostgreSQL + Redis + 服务端容器）
 - npm >= 9
 
-### 2. 启动数据库
+### 首次安装
+
+#### 1. 克隆项目
+
+```bash
+git clone <repo-url>
+cd DND5E_Tracker
+```
+
+#### 2. 配置 Docker 镜像加速（国内用户必做）
+
+Docker Hub 在国内访问受限，首次拉取镜像需要配置镜像加速器：
+
+编辑 `C:\Users\<用户名>\.docker\daemon.json`，添加 `registry-mirrors`：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://mirror.baidubce.com"
+  ]
+}
+```
+
+保存后**重启 Docker Desktop**（右键系统托盘图标 → Restart）。
+
+#### 3. 启动 Docker 服务
 
 ```bash
 docker compose up -d
 ```
 
-### 3. 安装依赖
+首次运行会自动拉取镜像并构建项目，等待几分钟直到所有容器就绪。
+
+> **如果镜像拉取仍然失败**，可通过镜像站手动拉取后打 tag：
+> ```bash
+> docker pull docker.m.daocloud.io/library/node:20-alpine
+> docker tag docker.m.daocloud.io/library/node:20-alpine node:20-alpine
+> docker pull docker.m.daocloud.io/library/postgres:16-alpine
+> docker tag docker.m.daocloud.io/library/postgres:16-alpine postgres:16-alpine
+> docker pull docker.m.daocloud.io/library/redis:7-alpine
+> docker tag docker.m.daocloud.io/library/redis:7-alpine redis:7-alpine
+> docker compose up -d
+> ```
+
+#### 4. 安装依赖 + 初始化数据库
 
 ```bash
 npm install
+npm run db:push -w server    # 同步数据库表结构（非交互式）
+npm run db:seed -w server    # 填充种子数据
 ```
 
-### 4. 初始化数据库
+> `prisma migrate dev` 在非 TTY 环境下无法使用，统一用 `db push`。
 
-```bash
-# 运行数据库迁移（创建所有表）
-npm run db:migrate -w server
-
-# 填充种子数据（创建测试账号和战役）
-npm run db:seed -w server
-```
-
-### 5. 启动开发环境
+#### 5. 启动开发环境
 
 ```bash
 npm run dev
 ```
 
 这会同时启动：
-- **前端** → http://localhost:5173
+- **前端** → http://127.0.0.1:15173
 - **后端 API** → http://localhost:3001
 
-### 6. 使用测试账号登录
+#### 6. 测试账号
 
-打开浏览器访问 http://localhost:5173，登录页包含快捷测试按钮：
+打开浏览器访问 http://127.0.0.1:15173，登录页包含快捷测试按钮：
 
 | 角色 | 邮箱 | 密码 |
 |---|---|---|
 | **DM** | `dm@example.com` | `password123` |
 | **Player** | `player@example.com` | `password123` |
 
-> 种子数据还包含一个测试战役（邀请码：`DND2024`）和测试角色。
+> 种子数据还包含两个测试角色（Ragnar Stoneheart、Vaelira）和一个测试战役（邀请码：`DND2024`）。
+
+### 日常启动（已安装后）
+
+```bash
+# 1. 启动 Docker 容器（如果未运行）
+docker compose up -d
+
+# 2. 启动开发服务器
+npm run dev
+```
+
+验证容器状态：
+
+```bash
+docker compose ps
+# 应看到三个容器均在 Up 状态：app、postgres、redis
+```
+
+停止项目（保留数据）：
+
+```bash
+docker compose down     # 停止所有容器
+```
+
+停止项目并清除数据库数据：
+
+```bash
+docker compose down -v  # 删除容器 + 数据卷
+```
 
 ---
 
@@ -113,14 +175,16 @@ dnd-visualizer/
 
 | 用途 | 命令 |
 |---|---|
-| 启动数据库 | `docker compose up -d` |
-| 停止数据库 | `docker compose down` |
-| 运行迁移 | `npm run db:migrate -w server` |
+| 启动所有 Docker 服务 | `docker compose up -d` |
+| 停止所有 Docker 服务 | `docker compose down` |
+| 停止并清除数据 | `docker compose down -v` |
+| 同步数据库表结构 | `npm run db:push -w server` |
 | 填充种子数据 | `npm run db:seed -w server` |
 | 启动开发环境 | `npm run dev` |
 | 仅启动后端 | `npm run dev:server` |
 | 仅启动前端 | `npm run dev:client` |
 | 生产构建 | `npm run build` |
+| 运行后端测试 | `npm run test -w server` |
 
 ---
 

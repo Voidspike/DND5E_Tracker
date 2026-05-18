@@ -32,7 +32,7 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Serve client static files in production
 if (config.nodeEnv === 'production') {
-  const clientDist = path.resolve(__dirname, '../../client/dist');
+  const clientDist = path.resolve(__dirname, '../../../../client/dist');
   app.use(express.static(clientDist));
   // SPA fallback: redirect all non-API routes to index.html
   app.get('*', (_req, res) => {

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { logger } from '../utils/logger';
 
 export class AppError extends Error {
@@ -39,7 +39,7 @@ export function errorHandler(
   }
 
   // Prisma known request errors (e.g. unique constraint)
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  if (err instanceof PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       res.status(409).json({
         error: 'A record with that value already exists',

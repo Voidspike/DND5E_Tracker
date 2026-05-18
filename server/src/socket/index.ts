@@ -219,12 +219,12 @@ export function setupSocket(httpServer: HTTPServer): Server {
       // (retroactive fix for data created before per-map isolation)
       if (combat) {
         const mapTokenIds = new Set(
-          (await prisma.token.findMany({ where: { mapId }, select: { id: true } })).map(t => t.id)
+          (await prisma.token.findMany({ where: { mapId }, select: { id: true } })).map((t: { id: string }) => t.id)
         );
-        const staleParticipants = combat.participants.filter(p => !mapTokenIds.has(p.tokenId));
+        const staleParticipants = combat.participants.filter((p: { tokenId: string; id: string }) => !mapTokenIds.has(p.tokenId));
         if (staleParticipants.length > 0) {
           await prisma.combatParticipant.deleteMany({
-            where: { id: { in: staleParticipants.map(p => p.id) } },
+            where: { id: { in: staleParticipants.map((p: { id: string }) => p.id) } },
           });
           combat = (await prisma.combatTracker.findUnique({
             where: { id: combat.id },
@@ -259,7 +259,7 @@ export function setupSocket(httpServer: HTTPServer): Server {
         // Bulk-insert all map tokens as participants
         if (mapTokens.length > 0) {
           await prisma.combatParticipant.createMany({
-            data: mapTokens.map((t) => ({
+            data: mapTokens.map((t: { id: string; name: string }) => ({
               combatId: combat!.id,
               tokenId: t.id,
               initiative: 0,
@@ -407,7 +407,7 @@ export function setupSocket(httpServer: HTTPServer): Server {
       });
 
       // Map participants to reflect sorted order with isActiveTurn flags
-      updated.participants = updated.participants.map((p) => ({
+      updated.participants = updated.participants.map((p: any) => ({
         ...p,
         isActiveTurn: p.id === sorted[nextIndex].id,
       }));
@@ -448,7 +448,7 @@ export function setupSocket(httpServer: HTTPServer): Server {
         include: { participants: true },
       });
 
-      updated.participants = updated.participants.map((p) => ({
+      updated.participants = updated.participants.map((p: any) => ({
         ...p,
         isActiveTurn: p.id === sorted[prevIndex].id,
       }));
@@ -595,7 +595,7 @@ export function setupSocket(httpServer: HTTPServer): Server {
       if (!socket.campaignId) return;
       prisma.character
         .update({ where: { id: data.characterId }, data: data.updates })
-        .then((updated) => {
+        .then((updated: any) => {
           io.to(`campaign:${socket.campaignId!}`).emit('character:update', updated as any);
         })
         .catch(console.error);

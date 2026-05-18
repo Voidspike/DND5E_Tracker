@@ -23,11 +23,17 @@ RUN npx tsc -p shared/tsconfig.json --outDir shared/dist 2>/dev/null || true
 # Build server
 RUN npx tsc -p server/tsconfig.json
 
+# Compile seed script to JS (so it runs without tsx in production)
+RUN npx tsc server/prisma/seed.ts --outDir server/dist --module commonjs --target ES2020 --esModuleInterop --resolveJsonModule --skipLibCheck --moduleResolution node
+
 # Build client
 RUN npx vite build --outDir dist client/
 
 # ── Stage 2: Production ──
 FROM node:20-alpine
+
+# Prisma requires OpenSSL on Alpine
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 

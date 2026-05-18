@@ -5,6 +5,9 @@ echo "Pushing DB schema..."
 cd /app/server
 npx prisma db push --skip-generate
 
+echo "Seeding database..."
+node dist/seed.js
+
 echo "Starting server..."
 cd /app
-exec node server/dist/src/index.js
+exec node server/dist/server/src/index.js

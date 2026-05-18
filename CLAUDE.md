@@ -24,7 +24,7 @@ docker compose up -d          # Start PostgreSQL + Redis
 npm install                   # Install deps
 npm run db:push -w server     # Sync Prisma schema → DB (non-interactive)
 npm run db:seed -w server     # Seed test data
-npm run dev                   # Start dev (frontend :5173, backend :3001)
+npm run dev                   # Start dev (frontend :15173, backend :3001)
 ```
 
 Test accounts: `dm@example.com` / `player@example.com` (password: `password123`). Seed campaign invite code: `DND2024`.
